@@ -1,6 +1,6 @@
 # Super4PUnity
 
-A media and mod player that loops pose videos from `CHAR_*` mod folders in time with music. This is a recreation of 4PUnity by Jexom, rebuilt on a current engine with a new video player, an in-app mod library and releases for several platforms.
+This is a recreation of 4PUnity by Jexom, rebuilt on a current engine with a new video player, an in-app mod library and releases for several platforms.
 
 ## Download
 
