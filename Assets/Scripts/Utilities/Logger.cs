@@ -7,6 +7,7 @@ using UnityEngine.Android;
 public class Logger : MonoBehaviour 
 {
     private readonly string LOG_DIR = "/../logs";
+    private string logDirPath;
     private readonly int LOG_LIMIT = 150;
     private string logFile;
     private bool HasCheckedLimit;
@@ -21,7 +22,12 @@ public class Logger : MonoBehaviour
 
     public void Initialize()
     {
-        var logDirPath = Application.dataPath + LOG_DIR;
+        //macOS keeps logs outside the app bundle (a signed bundle must not be written to)
+        #if UNITY_STANDALONE_OSX
+            logDirPath = Application.persistentDataPath + "/logs";
+        #else
+            logDirPath = Application.dataPath + LOG_DIR;
+        #endif
 
         //Create Directory Paths
         if (Application.platform != RuntimePlatform.Android)
@@ -40,8 +46,6 @@ public class Logger : MonoBehaviour
     //Write directly to log file (create if none so far)
     public void WriteToLog(string logString, string stackTrace, LogType type)
     {
-        var logDirPath = Application.dataPath + LOG_DIR;
-
         if(!HasCheckedLimit) {
             var allLogs = Directory.GetFiles(logDirPath);
             if(allLogs.Length >= LOG_LIMIT) { File.Delete(allLogs.First()); }

@@ -15,8 +15,8 @@ public class GameDataManager : MonoBehaviour {
     public Dictionary<string, string> ParsedPresetData;
 
     private string PLAYER_DIR = "/config";
-    private string MODS_DIR = "/mods";
-    private string MUSIC_DIR = "/mods/music";
+    private string MODS_DIR;
+    private string MUSIC_DIR;
 
     private readonly string PLAYERCONFIG_PATH = "/playerConfig.json";
     private readonly string PRESET_PATH = "/presets.json";
@@ -40,15 +40,11 @@ public class GameDataManager : MonoBehaviour {
     {
         if(IsPlayerDataLoaded) { return; }
         
-        //Set all Directories (for rest of runtime)
+        //Set the config directory (for rest of runtime); mods/music are resolved once config is loaded
         #if UNITY_STANDALONE_OSX
-            PLAYER_DIR = Application.dataPath + "/MacOS" + PLAYER_DIR;
-            MODS_DIR = Application.dataPath + "/MacOS" + MODS_DIR;
-            MUSIC_DIR = Application.dataPath +  "/MacOS" + MUSIC_DIR;
+            PLAYER_DIR = Application.persistentDataPath + PLAYER_DIR;
         #elif UNITY_ANDROID
             PLAYER_DIR = Application.persistentDataPath + PLAYER_DIR;
-            MODS_DIR = Application.persistentDataPath + MODS_DIR;
-            MUSIC_DIR = Application.persistentDataPath + MUSIC_DIR;
 
             if(!Permission.HasUserAuthorizedPermission(Permission.ExternalStorageRead)) {
                 Permission.RequestUserPermission(Permission.ExternalStorageRead);
@@ -58,8 +54,6 @@ public class GameDataManager : MonoBehaviour {
             }
         #else
             PLAYER_DIR = Application.dataPath + "/.." + PLAYER_DIR;
-            MODS_DIR = Application.dataPath + "/.." + MODS_DIR;
-            MUSIC_DIR = Application.dataPath +  "/.." + MUSIC_DIR;
         #endif 
     
         var playerConfigFilePath = PLAYER_DIR + PLAYERCONFIG_PATH;
@@ -76,18 +70,9 @@ public class GameDataManager : MonoBehaviour {
             ValidatePlyrCfgData();
         }
 
-        //Set Directory Paths
-        //TODO [Android]: Need to make DIRs non-static to support multiplatform & set based on user input for Android
-        try
-        {
-            CharDirs = Directory.GetDirectories(MODS_DIR, "CHAR_*").ToList();
-        }
-        catch(Exception)
-        {
-            Debug.LogWarning("Mods folder not found (char search): " + MODS_DIR);
-        }
+        ApplyModsPaths();
+        LoadCharDirs();
 
-        
         // else
         // {
         //     if (!Permission.HasUserAuthorizedPermission(Permission.ExternalStorageWrite) && !Permission.HasUserAuthorizedPermission(Permission.ExternalStorageRead))
@@ -103,6 +88,118 @@ public class GameDataManager : MonoBehaviour {
 
         IsPlayerDataLoaded = true;
     }
+    public event Action ModsPathChanged;
+    public bool ModsPathFellBack { get; private set; }
+
+    //The app and its mods folder always live in the same folder. The folder is created (with music and voices) when it
+    //is missing; only if that is impossible (for example a read-only location) does the per-user folder take over.
+    private string DefaultModsPath()
+    {
+        var perUser = Application.persistentDataPath + "/mods";
+        #if UNITY_STANDALONE_OSX && !UNITY_EDITOR
+            var next = MacAppLocation.ModsFolderNextToApp(MacAppBundlePath());
+            return next != null && EnsureModsFolder(next) ? next : perUser;
+        #elif UNITY_STANDALONE && !UNITY_EDITOR
+            var next = Application.dataPath + "/../mods";
+            return EnsureModsFolder(next) ? next : perUser;
+        #elif UNITY_ANDROID
+            var media = AndroidFiles.MediaDir();
+            var androidMods = media != null ? media + "/mods" : perUser;
+            EnsureModsFolder(androidMods);
+            return androidMods;
+        #elif UNITY_STANDALONE_OSX
+            return perUser;
+        #else
+            return Application.dataPath + "/../mods";
+        #endif
+    }
+
+    private static bool EnsureModsFolder(string path)
+    {
+        try
+        {
+            if(Directory.Exists(path)) { return true; }
+            Directory.CreateDirectory(path);
+            Directory.CreateDirectory(path + "/music");
+            Directory.CreateDirectory(path + "/voices");
+            return true;
+        }
+        catch(Exception e)
+        {
+            Debug.LogWarning("Could not create the mods folder next to the app (" + path + "): " + e.Message);
+            return false;
+        }
+    }
+
+    #if UNITY_STANDALONE_OSX && !UNITY_EDITOR
+    //The .app's real location, looking through macOS "app translocation" (a randomized read-only copy used for downloaded apps)
+    private static string MacAppBundlePath()
+    {
+        var bundle = Path.GetDirectoryName(Application.dataPath);   //dataPath is <bundle>/Contents
+        if(!MacAppLocation.IsTranslocated(bundle)) { return bundle; }
+
+        try
+        {
+            var info = new System.Diagnostics.ProcessStartInfo("/sbin/mount") { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true };
+            using(var process = System.Diagnostics.Process.Start(info))
+            {
+                var output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit(3000);
+                return MacAppLocation.OriginalPathFromMount(output, bundle);
+            }
+        }
+        catch(Exception) { return null; }
+    }
+    #endif
+
+    private void ApplyModsPaths()
+    {
+        var paths = ModsPathResolver.Resolve(PlyrConfigData.ModsPath, DefaultModsPath(), Directory.Exists);
+        MODS_DIR = paths.Mods;
+        MUSIC_DIR = paths.Music;
+        ModsPathFellBack = paths.UsedFallback;
+        Debug.Log("Mods folder: " + MODS_DIR);
+        if(paths.UsedFallback) { Debug.LogWarning("Configured mods folder not found, using default: " + MODS_DIR); }
+    }
+
+    private void LoadCharDirs()
+    {
+        try
+        {
+            CharDirs = Directory.GetDirectories(MODS_DIR, "CHAR_*").ToList();
+        }
+        catch(Exception)
+        {
+            CharDirs = new List<string>();
+            Debug.LogWarning("Mods folder not found (char search): " + MODS_DIR);
+        }
+    }
+
+    //Persist a newly chosen mods folder and reload everything that depends on it
+    public void SetModsPath(string path)
+    {
+        PlyrConfigData.ModsPath = ModsPathResolver.Normalize(path);
+        SavePlyrCfgData();
+        RefreshMods();
+    }
+
+    //Re-read the mods folder without touching the current selection (used after background installs)
+    public void ReloadCharDirsOnly()
+    {
+        ApplyModsPaths();
+        LoadCharDirs();
+    }
+
+    //Re-read mod folders and music from the current mods folder
+    public void RefreshMods()
+    {
+        ApplyModsPaths();
+        LoadCharDirs();
+        SelectedMods = new List<string>();
+        SelectedMusic = new List<string>();
+        ModsPathChanged?.Invoke();
+    }
+
     public string GetMusicPath(string musicName)
     {
         return MUSIC_DIR + "/" + musicName;

@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
@@ -12,10 +13,12 @@ public class ModPanel : MonoBehaviour
     public ObjectPooler ItemPooler;
     public Text ModLabelTxt;
     public Text NoModsMsg;
+    public InputField SearchInput;
     //public Text ModCountTxt;
     private int ModCount;
     private List<ModListItem> ContentListItems;
     private float InitialContentListHeight;
+    private float InitialContentListOffsetMinY;
     
     void Start() {
         ContentListItems = new List<ModListItem>();
@@ -27,6 +30,7 @@ public class ModPanel : MonoBehaviour
 
         var contentListRect = ContentList.GetComponent<RectTransform>();
         InitialContentListHeight = contentListRect.rect.height;
+        InitialContentListOffsetMinY = contentListRect.offsetMin.y;
 
         var charDirs = GameDataManager.GM.CharDirs;
         var index = 0;
@@ -35,12 +39,8 @@ public class ModPanel : MonoBehaviour
         {
             //TODO: Should we display long name or short name?
             
-            #if UNITY_ANDROID
-                var modPath = charDir.Substring(charDir.LastIndexOf('/') + 6);
-            #else
-                 var modPath = charDir.Substring(charDir.LastIndexOf('/') + 11);
-            #endif
-           
+            var modPath = Path.GetFileName(charDir.TrimEnd('/', '\\')).Substring("CHAR_".Length);
+
             var modShortName = modPath.Substring(modPath.LastIndexOf('_') + 1);
 
             SpriteLibrary.SL.AddExternalSprite(charDir + "/" + modShortName + ".png", modShortName);
@@ -65,10 +65,42 @@ public class ModPanel : MonoBehaviour
             NoModsMsg.gameObject.SetActive(true);
         }
 
-        var heightDiff = index * 45f - InitialContentListHeight;
-        if(heightDiff > 0) {
-            contentListRect.offsetMin = new Vector2(contentListRect.offsetMin.x, contentListRect.offsetMin.y - heightDiff);
+        ResizeContentList(index);
+
+        SearchInput.SetTextWithoutNotify(string.Empty);
+        SearchInput.onValueChanged.RemoveListener(FilterMods);
+        SearchInput.onValueChanged.AddListener(FilterMods);
+    }
+
+    private void ResizeContentList(int visibleCount)
+    {
+        var contentListRect = ContentList.GetComponent<RectTransform>();
+        var heightDiff = Mathf.Max(0f, visibleCount * 45f - InitialContentListHeight);
+        contentListRect.offsetMin = new Vector2(contentListRect.offsetMin.x, InitialContentListOffsetMinY - heightDiff);
+    }
+
+    //Show only mods matching the search text; ticked mods stay ticked while hidden
+    public void FilterMods(string searchText)
+    {
+        var visibleCount = 0;
+        foreach(var item in ContentListItems)
+        {
+            var isMatch = ModFilter.Matches(item.ModPath, searchText);
+            item.gameObject.SetActive(isMatch);
+            if(isMatch)
+            {
+                item.transform.localPosition = new Vector3(0, -45f * visibleCount, 0);
+                visibleCount++;
+            }
         }
+        ResizeContentList(visibleCount);
+    }
+
+    private void ClearSearch()
+    {
+        if(string.IsNullOrEmpty(SearchInput.text)) { return; }
+        SearchInput.SetTextWithoutNotify(string.Empty);
+        FilterMods(string.Empty);
     }
 
     public void OnItemSelect(ModListItem modListItem, bool isFromPreset = false)
@@ -85,7 +117,7 @@ public class ModPanel : MonoBehaviour
     {
         foreach(var item in ContentListItems)
         {
-            if(!item.Toggle.isOn) { item.Toggle.isOn = true; }
+            if(item.gameObject.activeSelf && !item.Toggle.isOn) { item.Toggle.isOn = true; }
         }
     }
 
@@ -93,6 +125,7 @@ public class ModPanel : MonoBehaviour
     {
         foreach(var item in ContentListItems)
         {
+            if(!isFromPreset && !item.gameObject.activeSelf) { continue; }
             if(item.Toggle.isOn) { 
                 if(isFromPreset) { 
                     item.Toggle.SetIsOnWithoutNotify(false);
@@ -107,6 +140,7 @@ public class ModPanel : MonoBehaviour
     //True = All mods found. False = Some mods not found
     public bool SetModsByString(string modListStr)
     {
+        ClearSearch();
         OnClear(true);
         var allModsFound = true;
 

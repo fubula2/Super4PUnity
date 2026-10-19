@@ -41,6 +41,10 @@ public class ParallaxBackground : MonoBehaviour
             secondarySprite.sortingOrder += BaseLayerIndex;
         }
 
+        //The scrolling pattern is sized for 16:9; on a wider screen it is scaled up to still cover the whole picture
+        var coverScale = Mathf.Max(1f, ((float)Screen.width / Mathf.Max(1, Screen.height)) / (16f / 9f));
+        if(coverScale > 1f) { (transform.parent != null ? transform.parent : transform).localScale *= coverScale; }
+
         InitialPos = transform.localPosition;
 
         var signX = Velocity.x == 0 ? 0 : Mathf.Sign(Velocity.x);

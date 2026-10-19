@@ -38,6 +38,8 @@ public class MainController : MonoBehaviour
         Logger.LG.Initialize();
 
         SwitchResolution((int)GM.PlyrConfigData.AspectResolution);
+        MobilePerformance.Apply();
+        PerfOverlay.Install();
 
         MusicPlayer.volume = GM.PlyrConfigData.MusicVolume;
         VoiceAudioPlayer.volume = GM.PlyrConfigData.VoiceVolume;
@@ -87,7 +89,7 @@ public class MainController : MonoBehaviour
             yield return null;
         }
 
-        foreach(var objPooler in FindObjectsOfType<ObjectPooler>()) {
+        foreach(var objPooler in FindObjectsByType<ObjectPooler>(FindObjectsSortMode.None)) {
             objPooler.RepoolAllObjects();
         }
 
@@ -110,6 +112,8 @@ public class MainController : MonoBehaviour
 
     public void SwitchResolution(int res)
     {
+        //Phones draw at the screen's own size; forcing a desktop resolution would stretch the picture
+        if(MobileLayout.Active) { return; }
         var aspectRes = (AspectResolution)res;
         var isFullscreen = GameDataManager.GM.PlyrConfigData.IsFullscreen;
 
@@ -171,7 +175,7 @@ public class MainController : MonoBehaviour
 
     public void SetState(GameState gameState)
     {
-        if(UIInputModule == null) { UIInputModule = GameObject.FindObjectOfType<InputSystemUIInputModule>(); }
+        if(UIInputModule == null) { UIInputModule = FindAnyObjectByType<InputSystemUIInputModule>(); }
 
         MainController.MC.GS_Current = gameState;
         if(gameState == GameState.Loading) {

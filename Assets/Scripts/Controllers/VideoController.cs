@@ -13,7 +13,7 @@ public class VideoController : InputController
     public CharacterPanel CharacterPanel;
     public PosePanel PosePanel;
     public HelpPanel HelpPanel;
-    public VideoManager VideoManager;
+    public VideoDeck VideoDeck;
 
     public bool IsLoaded;
 
@@ -54,9 +54,12 @@ public class VideoController : InputController
         MusicPanel.Initialize();
         StartCoroutine(MusicPanel.LoadMusic());
 
-        //TODO: Move VideoManager below these and set initial load to one video if only one in characters
+        //TODO: Move VideoDeck below these and set initial load to one video if only one in characters
         //Initialize Videoplayers, Pose Panel (empty), and Character Panel (selects & sets next)
-        VideoManager.Initialize();
+        VideoDeck.Initialize(MainController.MC.MusicPlayer);
+        VideoDeck.OnReady += OnLoadComplete;
+        VideoDeck.OnCycleComplete += OnCycleComplete;
+        VideoDeck.OnClipFailed += OnClipFailed;
         PosePanel.Initialize();
         CharCount = CharacterPanel.Initialize(); //Sets SelectedCharIndex
 
@@ -71,11 +74,11 @@ public class VideoController : InputController
 
     public void OnLoadComplete()
     {
-        if(!MusicPanel.IsLoaded || !VideoManager.IsLoaded) { return; }
+        if(!MusicPanel.IsLoaded || !VideoDeck.IsLoaded) { return; }
 
         MainController.MC.SetState(GameState.Active);
         MusicPanel.PlayMusic();
-        VideoManager.PlayVideos();
+        VideoDeck.PlayVideos();
         IsLoaded = true;
     }
 
@@ -172,7 +175,7 @@ public class VideoController : InputController
 
         NextPoseIndex = index;
         
-        VideoManager.LoadNextVideo(CharacterPanel.GetVideoPath(NextPoseIndex));
+        VideoDeck.LoadNextVideo(CharacterPanel.GetVideoPath(NextPoseIndex));
 
         if(SelectedCharIndex == ActiveCharIndex 
             || (SelectedCharIndex == -1 && NextCharIndex == ActiveCharIndex)) 
@@ -204,13 +207,14 @@ public class VideoController : InputController
         PosePanel.StyleBtns(NextCharIndex == ActiveCharIndex, false);
         CharacterPanel.ClearSelectedItem();
         SelectedCharIndex = -1;
-        VideoManager.LoadNextVideo(CharacterPanel.GetVideoPath(NextPoseIndex));
+        VideoDeck.LoadNextVideo(CharacterPanel.GetVideoPath(NextPoseIndex));
     }
 
-    // private void Update() {
-    //     var audioFrame = (long)math.round(VideoManager.mainPlayer.frameCount * ((MainController.MC.MusicPlayer.time % 4)/4));
-    //     Debug.Log("Desync Frames: " + (VideoManager.mainPlayer.frame - audioFrame));
-    // }
+    //A clip that cannot play is skipped by the deck; if it was the very first clip there is nothing to show
+    private void OnClipFailed(string videoPath)
+    {
+        if(!VideoDeck.IsLoaded) { MainController.MC.GoToScene("Title"); }
+    }
 
     public bool CheckLooping()
     {
@@ -219,7 +223,7 @@ public class VideoController : InputController
 
     public void SetVideoVolume(float volume)
     {
-        VideoManager.SetVolume(volume);
+        VideoDeck.SetVolume(volume);
     }
 
     public void OnHelpClick()
@@ -253,21 +257,108 @@ public class VideoController : InputController
     override public void OnToggleVideoSFX(CallbackContext context)
     {
         if(!context.performed || !IsLoaded) { return; }
-        if(VideoManager.GetVolume() == 0) {
-            VideoManager.RevertVolume();
+        if(VideoDeck.GetVolume() == 0) {
+            VideoDeck.RevertVolume();
         } else {
-            VideoManager.SetVolume(0);
+            VideoDeck.SetVolume(0);
         }
     }
 
     override public void OnHideUI(CallbackContext context)
     {
-        if(!context.performed || HelpPanel.IsHelpOpen || !HelpPanel.IsHelpTransitionComplete) { return; }
+        if(!context.performed) { return; }
+        ToggleUI();
+    }
+
+    private void ToggleUI()
+    {
+        if(HelpPanel.IsHelpOpen || !HelpPanel.IsHelpTransitionComplete) { return; }
 
         var value = !CharacterPanel.isActiveAndEnabled;
         CharacterPanel.gameObject.SetActive(value);
         PosePanel.gameObject.SetActive(value);
         MusicPanel.gameObject.SetActive(value);
+    }
+
+    //Touch: a double tap on the picture (not on a button or list) hides or shows the controls, like the U key
+    private const float DoubleTapSeconds = 0.35f;
+    private const float DoubleTapRadius = 120f;
+    private float lastTapTime = float.NegativeInfinity;
+    private Vector2 lastTapPosition;
+
+    //Two fingers: spreading them apart fills the screen with the picture, pinching them together shows it whole again
+    private const float PinchOut = 1.2f;
+    private const float PinchIn = 0.83f;
+    private float pinchStartDistance;
+    private bool pinching;
+    private bool pinchHandled;
+
+    private bool UpdatePinch(UnityEngine.InputSystem.Touchscreen touch)
+    {
+        var count = 0;
+        Vector2 first = default, second = default;
+        foreach(var t in touch.touches)
+        {
+            if(!t.press.isPressed) { continue; }
+            if(count == 0) { first = t.position.ReadValue(); } else if(count == 1) { second = t.position.ReadValue(); }
+            count++;
+        }
+
+        if(count < 2)
+        {
+            if(count == 0) { pinching = false; }
+            return pinching;   //the second finger lifting first must not count as a tap
+        }
+
+        var distance = Vector2.Distance(first, second);
+        if(!pinching)
+        {
+            pinching = true;
+            pinchHandled = false;
+            pinchStartDistance = distance;
+            lastTapTime = float.NegativeInfinity;
+        }
+        else if(!pinchHandled && pinchStartDistance > 1f)
+        {
+            var ratio = distance / pinchStartDistance;
+            if(ratio >= PinchOut) { VideoDeck.SetFill(true); pinchHandled = true; }
+            else if(ratio <= PinchIn) { VideoDeck.SetFill(false); pinchHandled = true; }
+        }
+        return true;
+    }
+
+    private void Update()
+    {
+        var touch = UnityEngine.InputSystem.Touchscreen.current;
+        if(touch == null) { return; }
+        if(UpdatePinch(touch)) { return; }
+        if(!touch.primaryTouch.press.wasPressedThisFrame) { return; }
+
+        var position = touch.primaryTouch.position.ReadValue();
+        if(IsOverControl(position)) { lastTapTime = float.NegativeInfinity; return; }
+
+        if(Time.unscaledTime - lastTapTime <= DoubleTapSeconds && (position - lastTapPosition).sqrMagnitude <= DoubleTapRadius * DoubleTapRadius)
+        {
+            lastTapTime = float.NegativeInfinity;
+            ToggleUI();
+        }
+        else
+        {
+            lastTapTime = Time.unscaledTime;
+            lastTapPosition = position;
+        }
+    }
+
+    private static bool IsOverControl(Vector2 position)
+    {
+        if(UnityEngine.EventSystems.EventSystem.current == null) { return false; }
+        var hits = new List<UnityEngine.EventSystems.RaycastResult>();
+        UnityEngine.EventSystems.EventSystem.current.RaycastAll(new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current) { position = position }, hits);
+        foreach(var hit in hits)
+        {
+            if(hit.gameObject.GetComponentInParent<Selectable>() != null || hit.gameObject.GetComponentInParent<ScrollRect>() != null) { return true; }
+        }
+        return false;
     }
 
     override public void OnAnyKey(CallbackContext context)
