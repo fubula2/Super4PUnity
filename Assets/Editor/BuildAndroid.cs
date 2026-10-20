@@ -76,7 +76,7 @@ public static class BuildAndroid
         }
     }
 
-    //2.0.0 -> 20000, 2.1.0 -> 20100: always rises with the version number
+    //2.0.0 -> 20000, 2.1.1 -> 20101: always rises with the version number
     private static int VersionCode(string version)
     {
         var parts = version.Split('.');
