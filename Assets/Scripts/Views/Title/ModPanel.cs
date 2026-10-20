@@ -43,12 +43,12 @@ public class ModPanel : MonoBehaviour
 
             var modShortName = modPath.Substring(modPath.LastIndexOf('_') + 1);
 
-            SpriteLibrary.SL.AddExternalSprite(charDir + "/" + modShortName + ".png", modShortName);
+            SpriteLibrary.SL.AddExternalSprite(MediaFiles.IconIn(charDir, modShortName), modShortName);
 
             var modListItem = ItemPooler.GetPooledObject("ModListItem", ContentList.transform).GetComponent<ModListItem>();
             modListItem.ModName = modShortName;
             modListItem.ModPath = modPath;
-            modListItem.Label.text = modPath;
+            modListItem.Label.text = modPath + (MediaFiles.VideosIn(charDir).Count == 0 ? "  (no videos)" : string.Empty);
             modListItem.transform.localPosition = new Vector3(0, -45f * index, 0);
             modListItem.Toggle.isOn = false;
             modListItem.ModPreviewPanel = ModPreviewPanel;

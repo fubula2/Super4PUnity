@@ -56,7 +56,7 @@ public class MenuController : InputController
         #if UNITY_STANDALONE || UNITY_EDITOR
             FolderPicker = gameObject.AddComponent<DesktopFolderPicker>();
             ModsFolderBtn.onClick.AddListener(OnChooseModsFolder);
-        #elif UNITY_ANDROID
+        #elif UNITY_ANDROID || UNITY_IOS
             ModsFolderBtn.onClick.AddListener(OnShowModsFolder);
         #else
             ModsFolderBtn.gameObject.SetActive(false);
@@ -100,7 +100,7 @@ public class MenuController : InputController
         DefaultPoseStyleDD.SetValueWithoutNotify((int)GameDataManager.GM.PlyrConfigData.PosePlaybackStyle);
 
         MainController.MC.GS_Current = GameState.Active;
-        if(Application.platform == RuntimePlatform.Android) { StartCoroutine(DefaultMusicCopier.CopyOnce(OnRefreshMods)); }
+        if(MobileLayout.Active) { StartCoroutine(DefaultMusicCopier.CopyOnce(OnRefreshMods)); }
     }
 
     //Get Mods and Refresh are a little wider so they are easier to hit and notice; PackTopButtons then lines all three up
@@ -167,6 +167,12 @@ public class MenuController : InputController
     //Android: tell the player where the mods folder is and offer to open it in the Files app
     private void OnShowModsFolder()
     {
+        //iPhone and iPad: the folder is in the app's Documents, shown in the Files app under On My iPhone
+        if(Application.platform == RuntimePlatform.IPhonePlayer)
+        {
+            GetModsPanel.Dialog.Show("Mods folder", "Put your mod folders (CHAR_...) here, then press Refresh:\n\nFiles > On My iPhone > Super4PUnity > mods", "OK", null);
+            return;
+        }
         var path = GameDataManager.GM.GetModsPath();
         var where = AndroidFolderLink.Friendly(path);
         GetModsPanel.Dialog.Show("Mods folder", "Put your mod folders (CHAR_...) here, then press Refresh:\n\n" + where,
@@ -278,6 +284,17 @@ public class MenuController : InputController
     {
         GameDataManager.GM.SetSelectedMods(SourcePanel.GetSelectedMods());
         GameDataManager.GM.SetSelectedMusic(SourcePanel.GetSelectedMusic());
+
+        //A mod with no video files cannot be played; say what the folder actually holds instead of opening a blank screen
+        var withoutVideos = GameDataManager.GM.SelectedMods.Where(m => GameDataManager.GM.GetVideoPaths(m).Count == 0).ToList();
+        if(withoutVideos.Count > 0)
+        {
+            var first = "CHAR_" + withoutVideos[0];
+            GetModsPanel.Dialog.Show("No videos found",
+                "These mods have no video files (.mp4 or .m4v): " + string.Join(", ", withoutVideos.Take(4)) + "\n\n" + first + " holds: " +
+                MediaFiles.Peek(GameDataManager.GM.GetModsPath() + "/" + first) + "\n\nCheck that the videos were copied into that folder.", "OK", null);
+            return;
+        }
         ModPanel.RemoveUnusedSprites();
         if(LinuxVideoPrep.Needed)
         {

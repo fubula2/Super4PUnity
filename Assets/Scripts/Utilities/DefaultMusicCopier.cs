@@ -5,7 +5,7 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.Networking;
 
-//Android: the APK carries a default music track (StreamingAssets/DefaultMusic, added at build time). The first time the app runs,
+//Phones: the app carries a default music track (StreamingAssets/DefaultMusic, added at build time). The first time the app runs,
 //it is copied into the music folder. Files inside an APK cannot be listed, so a small list.txt names them.
 public static class DefaultMusicCopier
 {
@@ -16,7 +16,10 @@ public static class DefaultMusicCopier
         var config = GameDataManager.GM.PlyrConfigData;
         if(config.DefaultMusicCopied) { yield break; }
 
-        var root = Application.streamingAssetsPath + "/" + Folder + "/";
+        //Android already gives a jar:file:// address; iPhone gives a plain path that needs file://
+        var basePath = Application.streamingAssetsPath;
+        if(!basePath.Contains("://")) { basePath = "file://" + basePath; }
+        var root = basePath + "/" + Folder + "/";
         string[] names;
         using(var list = UnityWebRequest.Get(root + "list.txt"))
         {

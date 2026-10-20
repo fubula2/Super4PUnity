@@ -23,23 +23,18 @@ public class Logger : MonoBehaviour
     public void Initialize()
     {
         //macOS keeps logs outside the app bundle (a signed bundle must not be written to)
-        #if UNITY_STANDALONE_OSX
+        #if UNITY_ANDROID && !UNITY_EDITOR
+            //Next to the mods folder in the app's media folder, so the player can find the log in the Files app
+            logDirPath = (AndroidFiles.MediaDir() ?? Application.persistentDataPath) + "/logs";
+        #elif UNITY_STANDALONE_OSX || UNITY_IOS
             logDirPath = Application.persistentDataPath + "/logs";
         #else
             logDirPath = Application.dataPath + LOG_DIR;
         #endif
 
-        //Create Directory Paths
-        if (Application.platform != RuntimePlatform.Android)
-        {
-            if(!DataUtility.CheckDirectoryExists(logDirPath)) {  Directory.CreateDirectory(logDirPath); }
-        } 
-        else
-        {
-            if (!Directory.Exists(GameDataManager.GM.GetAndroidInternalFilesDir() + "/.4PUnity/logs")) {
-                Directory.CreateDirectory(GameDataManager.GM.GetAndroidInternalFilesDir() + "/.4PUnity/logs");
-            }
-        }
+        //Create the log folder; a folder that cannot be created only means no log file
+        try { Directory.CreateDirectory(logDirPath); }
+        catch(Exception e) { UnityEngine.Debug.LogWarning("Could not create the log folder " + logDirPath + ": " + e.Message); }
         Application.logMessageReceived += WriteToLog;
     }
 

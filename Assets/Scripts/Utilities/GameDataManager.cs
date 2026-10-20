@@ -41,7 +41,7 @@ public class GameDataManager : MonoBehaviour {
         if(IsPlayerDataLoaded) { return; }
         
         //Set the config directory (for rest of runtime); mods/music are resolved once config is loaded
-        #if UNITY_STANDALONE_OSX
+        #if UNITY_STANDALONE_OSX || UNITY_IOS
             PLAYER_DIR = Application.persistentDataPath + PLAYER_DIR;
         #elif UNITY_ANDROID
             PLAYER_DIR = Application.persistentDataPath + PLAYER_DIR;
@@ -107,6 +107,10 @@ public class GameDataManager : MonoBehaviour {
             var androidMods = media != null ? media + "/mods" : perUser;
             EnsureModsFolder(androidMods);
             return androidMods;
+        #elif UNITY_IOS
+            //The app's Documents folder: with file sharing switched on (see IosBuildSettings) it shows up in the Files app
+            EnsureModsFolder(perUser);
+            return perUser;
         #elif UNITY_STANDALONE_OSX
             return perUser;
         #else
@@ -211,8 +215,7 @@ public class GameDataManager : MonoBehaviour {
 
         try
         {
-            musicFilePaths.AddRange(Directory.GetFiles(MUSIC_DIR, "*.ogg"));
-            musicFilePaths.AddRange(Directory.GetFiles(MUSIC_DIR, "*.mp3"));
+            musicFilePaths.AddRange(Directory.GetFiles(MUSIC_DIR).Where(MediaFiles.IsMusic));
         }
         catch(Exception)
         {
@@ -254,9 +257,7 @@ public class GameDataManager : MonoBehaviour {
 
     public List<string> GetVideoPaths(string modName)
     {
-        var videoPaths = Directory.GetFiles(MODS_DIR + "/CHAR_" + modName, "*.mp4").ToList();
-        videoPaths.AddRange(Directory.GetFiles(MODS_DIR + "/CHAR_" + modName, "*.m4v"));
-        return videoPaths;
+        return MediaFiles.VideosIn(MODS_DIR + "/CHAR_" + modName);
     }
 
     public void LoadPresetData()

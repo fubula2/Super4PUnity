@@ -229,10 +229,14 @@ public class VideoDeck : MonoBehaviour
         return !MobileLayout.Active || next.Warm;
     }
 
+    //The newest video error (clip name and the player's message), shown in the on-screen readout for troubleshooting
+    public string LastError { get; private set; }
+
     private void OnError(VideoPlayer player, string message)
     {
         var slot = SlotOf(player);
         if(slot == null) { return; }
+        LastError = System.IO.Path.GetFileName(slot.Path ?? string.Empty) + ": " + message;
 
         var failedPath = slot.Path;
 
@@ -424,10 +428,10 @@ public class VideoDeck : MonoBehaviour
     //For the on-screen readout: the clip's own size and frame rate against the buffer it is drawn into
     public string VideoInfo()
     {
-        if(current == null || current.Path == null) { return "no clip"; }
+        if(current == null || current.Path == null) { return "no clip" + (LastError != null ? "  ERROR " + LastError : string.Empty); }
         var p = current.Player;
         return string.Format("clip {0}x{1} @{2:F0}fps  buffer {3}x{4}  t={5:F2}/{6:F2}  speed {7:F2}  {8}",
-            p.width, p.height, p.frameRate, current.Texture.width, current.Texture.height, p.time, current.Length, p.playbackSpeed, p.isPlaying ? "playing" : "paused");
+            p.width, p.height, p.frameRate, current.Texture.width, current.Texture.height, p.time, current.Length, p.playbackSpeed, p.isPlaying ? "playing" : "paused") + (LastError != null ? "\nERROR " + LastError : string.Empty);
     }
 
     public double CurrentTime => current != null ? current.Player.time : -1;

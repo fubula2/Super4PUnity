@@ -23,7 +23,7 @@ public class SpriteLibrary : MonoBehaviour
 
     public void AddExternalSprite(string filePath, string spriteName)
     {
-        if(File.Exists(filePath) && !SpriteList.Any(x => x.name == spriteName))
+        if(!string.IsNullOrEmpty(filePath) && File.Exists(filePath) && !SpriteList.Any(x => x.name == spriteName))
         {
             var fileData = File.ReadAllBytes(filePath);
             var spriteTexture = new Texture2D(1, 1);

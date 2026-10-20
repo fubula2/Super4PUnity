@@ -29,6 +29,9 @@ public class PlayerConfigData
     public string LastUpdateCheckUtc;
     public string SkippedUpdateVersion;
 
+    //The newest version the last update check found; the version label turns red while it is newer than this app
+    public string NewestKnownVersion;
+
     //Phones: the video fills the screen (pinch out) instead of keeping its shape with bars (pinch in)
     public bool VideoFillScreen;
 

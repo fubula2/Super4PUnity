@@ -11,7 +11,7 @@ public static class MobileLayout
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             if(Environment.GetEnvironmentVariable("S4P_FORCE_MOBILE_LAYOUT") == "1") { return true; }
 #endif
-            return Application.platform == RuntimePlatform.Android;
+            return Application.platform == RuntimePlatform.Android || Application.platform == RuntimePlatform.IPhonePlayer;
         }
     }
 }

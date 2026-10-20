@@ -4,7 +4,7 @@ using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 
-//Android builds carry the default music track from Packaging/mods/music inside the APK (other platforms ship it in their mods folder).
+//Phone builds (Android and iOS) carry the default music track from Packaging/mods/music inside the app (other platforms ship it in their mods folder).
 //The files are copied into StreamingAssets only for the duration of the build.
 public class AndroidDefaultMusic : IPreprocessBuildWithReport, IPostprocessBuildWithReport
 {
@@ -13,9 +13,11 @@ public class AndroidDefaultMusic : IPreprocessBuildWithReport, IPostprocessBuild
 
     public int callbackOrder => 0;
 
+    private static bool IsPhone(BuildTarget platform) { return platform == BuildTarget.Android || platform == BuildTarget.iOS; }
+
     public void OnPreprocessBuild(BuildReport report)
     {
-        if(report.summary.platform != BuildTarget.Android || !Directory.Exists(Source)) { return; }
+        if(!IsPhone(report.summary.platform) || !Directory.Exists(Source)) { return; }
         Directory.CreateDirectory(Target);
         var names = Directory.GetFiles(Source, "*.ogg").Select(Path.GetFileName).ToArray();
         foreach(var name in names) { File.Copy(Path.Combine(Source, name), Path.Combine(Target, name), true); }
@@ -25,7 +27,7 @@ public class AndroidDefaultMusic : IPreprocessBuildWithReport, IPostprocessBuild
 
     public void OnPostprocessBuild(BuildReport report)
     {
-        if(report.summary.platform != BuildTarget.Android) { return; }
+        if(!IsPhone(report.summary.platform)) { return; }
         if(Directory.Exists(Target)) { FileUtil.DeleteFileOrDirectory(Target); }
         if(File.Exists(Target + ".meta")) { FileUtil.DeleteFileOrDirectory(Target + ".meta"); }
         if(Directory.Exists("Assets/StreamingAssets") && !Directory.EnumerateFileSystemEntries("Assets/StreamingAssets").Any(e => !e.EndsWith(".meta")))

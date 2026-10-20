@@ -35,6 +35,8 @@ public class DownloadHud : MonoBehaviour
     private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(24);
 
     private static bool cleaned;
+    private Color versionNormalColor;
+    private bool versionColorSet;
     private static bool updateChecked;
     private readonly Queue<DownloadNotification> toasts = new Queue<DownloadNotification>();
     private DownloadNotification shownToast;
@@ -59,6 +61,11 @@ public class DownloadHud : MonoBehaviour
         StripLabel.horizontalOverflow = HorizontalWrapMode.Wrap; StripLabel.verticalOverflow = VerticalWrapMode.Truncate;
 
         //Linux support is a beta, so the version label says so
+        //A little further from the bar's corner rivet
+        var versionRect = (RectTransform)VersionButton.transform;
+        versionRect.anchoredPosition += new Vector2(20f, 0f);
+        versionNormalColor = VersionText.color;
+
         VersionText.text = "v" + Application.version + (Application.platform == RuntimePlatform.LinuxPlayer ? " beta" : string.Empty);
         VersionButton.onClick.AddListener(() =>
         {
@@ -208,6 +215,9 @@ public class DownloadHud : MonoBehaviour
             if(UpdateThrottle.ShouldCheck(config.LastUpdateCheckUtc, DateTime.UtcNow, UpdateCheckInterval)) { UpdateChecker.Check(Application.version, false); }
         }
 
+        //Once the saved settings are there, show whether this version is out of date (known from the last check)
+        if(!versionColorSet) { versionColorSet = true; ColorVersionLabel(config); }
+
         while(UpdateChecker.TryTakeResult(out var result))
         {
             //A failed check is silent unless the player asked, and does not count as a check (it is retried next launch)
@@ -218,6 +228,7 @@ public class DownloadHud : MonoBehaviour
             }
 
             config.LastUpdateCheckUtc = UpdateThrottle.Stamp(DateTime.UtcNow);
+            if(result.Release != null) { config.NewestKnownVersion = result.Release.Version; ColorVersionLabel(config); }
             GameDataManager.GM.SavePlyrCfgData();
 
             if(result.Status == UpdateStatus.Available)
@@ -230,6 +241,12 @@ public class DownloadHud : MonoBehaviour
                 ShowToast(new DownloadNotification { Text = "You're up to date (v" + Application.version + "): " + detail + "." });
             }
         }
+    }
+
+    //Red while a newer version has been released; the normal colour otherwise
+    private void ColorVersionLabel(PlayerConfigData config)
+    {
+        VersionText.color = AppVersion.IsNewer(config.NewestKnownVersion, Application.version) ? CancelRed : versionNormalColor;
     }
 
     private static DownloadNotification UpdateNotice(ReleaseInfo release)
