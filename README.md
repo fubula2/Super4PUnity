@@ -8,10 +8,10 @@ Get the latest build from the [Releases](../../releases) page. Each download is 
 
 | Platform | File | Status |
 |---|---|---|
-| Windows 10/11 (64-bit) | `Super4PUnity_v2.0.0_windows_x64.zip` | Tested |
-| macOS (Apple silicon) | `Super4PUnity_v2.0.0_macOS_arm64.zip` | Tested |
-| Android 8+ (64-bit) | `Super4PUnity_v2.0.0_android_arm64.apk` | Tested |
-| Linux (64-bit) | `Super4PUnity_v2.0.0_linux_x64.zip` | **Beta** |
+| Windows 10/11 (64-bit) | `Super4PUnity_v2.1.0_windows_x64.zip` | Tested |
+| macOS (Apple silicon) | `Super4PUnity_v2.1.0_macOS_arm64.zip` | Tested |
+| Android 8+ (64-bit) | `Super4PUnity_v2.1.0_android_arm64.apk` | Tested |
+| Linux (64-bit) | `Super4PUnity_v2.1.0_linux_x64.zip` | **Beta** |
 
 ## Features
 
@@ -21,6 +21,7 @@ Get the latest build from the [Releases](../../releases) page. Each download is 
   - Downloads zip or rar packs in the background with a progress bar, a queue and notifications. Folder shares let you pick several packs at once, and you choose which characters to import.
   - The Music tab shows the music pack as folders you can expand and collapse; tracks download straight into `mods/music`.
 - **Mods next to the app.** The `mods` folder (with `music` and `voices`) always sits beside the app. A "Mods Folder" button lets you pick another one, and "Refresh" reloads it.
+- **Window and full screen.** Resize or maximize the window freely. F11 switches full screen on and off in the menu and the player; in the player a double click does the same, and a size picker sits at the top centre (it hides with the other controls when you press U).
 - **Frame rate option** (30 or 60) under Display Settings.
 - **Update notice.** The app tells you when a newer version is released; it never updates itself silently.
 - **Phone support.** Touch layout, pinch to switch between fit and fill, double tap to hide the controls.

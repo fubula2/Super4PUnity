@@ -19,6 +19,17 @@ public class FfmpegArgsTests
         CollectionAssert.IsSubsetOf(new[] { "libvpx", "libvorbis", "webm" }, args.ToList());
     }
 
+    [Test]
+    public void Convert_keeps_original_size_and_rate_and_uses_the_fast_encoder_mode()
+    {
+        var args = FfmpegArgs.Convert("in.mp4", "out.webm", 3, 8).ToList();
+        CollectionAssert.DoesNotContain(args, "-vf");
+        CollectionAssert.DoesNotContain(args, "-r");
+        Assert.AreEqual("realtime", args[args.IndexOf("-deadline") + 1]);
+        Assert.AreEqual("8", args[args.IndexOf("-cpu-used") + 1]);
+        Assert.AreEqual("3", args[args.IndexOf("-threads") + 1]);
+    }
+
     private const string Good =
         "Encoders:\n V..... = Video\n ------\n V....D libvpx               libvpx VP8 (codec vp8)\n A....D libvorbis            libvorbis (codec vorbis)\n";
 

@@ -84,7 +84,8 @@ public class VideoDeck : MonoBehaviour
         }
     }
 
-    private VideoFit Fit => !MobileLayout.Active ? VideoFit.Height : FillScreen ? VideoFit.Fill : VideoFit.Whole;
+    //The whole picture is always shown centred, so a resized or maximized window never crops it; phones can zoom to fill
+    private VideoFit Fit => MobileLayout.Active && FillScreen ? VideoFit.Fill : VideoFit.Whole;
 
     //Sets the picture's size and puts it in the exact middle of the screen
     private void Layout(Slot slot)

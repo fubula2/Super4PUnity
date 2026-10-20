@@ -66,7 +66,9 @@ public class MenuController : InputController
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
         if(System.Environment.GetEnvironmentVariable("S4P_TEST_HIDE_MODSBTN") == "1") { ModsFolderBtn.gameObject.SetActive(false); }
 #endif
+        WidenTopButtons();
         PackTopButtons();
+        StyleTopButtons();
 
         if(GameDataManager.IsPlayerDataLoaded)
         {
@@ -99,6 +101,36 @@ public class MenuController : InputController
 
         MainController.MC.GS_Current = GameState.Active;
         if(Application.platform == RuntimePlatform.Android) { StartCoroutine(DefaultMusicCopier.CopyOnce(OnRefreshMods)); }
+    }
+
+    //Get Mods and Refresh are a little wider so they are easier to hit and notice; PackTopButtons then lines all three up
+    private void WidenTopButtons()
+    {
+        void Widen(Button b, float width) { var rt = (RectTransform)b.transform; rt.sizeDelta = new Vector2(width, rt.sizeDelta.y); }
+        Widen(GetModsBtn, 220f);
+        Widen(RefreshBtn, 200f);
+    }
+
+    //The three top buttons look like the Save button (its green picture and white text), so they stand out from the yellow bar
+    private void StyleTopButtons()
+    {
+        var save = FindDeep(GetComponentInChildren<Canvas>(true).transform, "SavePresetBtn");
+        var source = save != null ? save.GetComponent<Image>() : null;
+        if(source == null) { return; }
+        var sourceLabel = save.GetComponentInChildren<Text>();
+        var sourceButton = save.GetComponent<Button>();   //the green is the button's colour tint, not the picture's own colour
+
+        foreach(var button in new[] { GetModsBtn, ModsFolderBtn, RefreshBtn })
+        {
+            var image = button.GetComponent<Image>();
+            image.sprite = source.sprite;
+            image.type = source.type;
+            image.color = source.color;
+            image.pixelsPerUnitMultiplier = source.pixelsPerUnitMultiplier;
+            if(sourceButton != null) { button.transition = sourceButton.transition; button.colors = sourceButton.colors; }
+            var label = button.GetComponentInChildren<Text>();
+            if(label != null && sourceLabel != null) { label.color = sourceLabel.color; }
+        }
     }
 
     //The top-right buttons sit side by side from the right edge; a hidden one must not leave a gap

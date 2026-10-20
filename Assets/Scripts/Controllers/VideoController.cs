@@ -14,6 +14,7 @@ public class VideoController : InputController
     public PosePanel PosePanel;
     public HelpPanel HelpPanel;
     public VideoDeck VideoDeck;
+    public ResolutionPicker ResolutionPicker;
 
     public bool IsLoaded;
 
@@ -278,6 +279,7 @@ public class VideoController : InputController
         CharacterPanel.gameObject.SetActive(value);
         PosePanel.gameObject.SetActive(value);
         MusicPanel.gameObject.SetActive(value);
+        if(ResolutionPicker != null && !MobileLayout.Active) { ResolutionPicker.gameObject.SetActive(value); }
     }
 
     //Touch: a double tap on the picture (not on a button or list) hides or shows the controls, like the U key
@@ -329,6 +331,13 @@ public class VideoController : InputController
 
     private void Update()
     {
+        //Computers: a double click on the picture (not on a button or list) switches full screen on or off, like F11
+        var mouse = UnityEngine.InputSystem.Mouse.current;
+        if(mouse != null && !MobileLayout.Active && mouse.leftButton.wasPressedThisFrame && mouse.clickCount.ReadValue() == 2 && !IsOverControl(mouse.position.ReadValue()))
+        {
+            ToggleFullscreen();
+        }
+
         var touch = UnityEngine.InputSystem.Touchscreen.current;
         if(touch == null) { return; }
         if(UpdatePinch(touch)) { return; }
@@ -376,9 +385,15 @@ public class VideoController : InputController
 
     override public void OnFullscreen(CallbackContext context)
     {
-        if(!context.performed || HelpPanel.IsHelpOpen || !HelpPanel.IsHelpTransitionComplete) { return; }
+        if(!context.performed) { return; }
+        ToggleFullscreen();
+    }
+
+    private void ToggleFullscreen()
+    {
+        if(HelpPanel.IsHelpOpen || !HelpPanel.IsHelpTransitionComplete) { return; }
         MainController.MC.ToggleFullScreen(!Screen.fullScreen);
-    } 
+    }
 
     override public void OnEscape(CallbackContext context)
     {

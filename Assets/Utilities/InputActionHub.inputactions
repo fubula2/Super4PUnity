@@ -122,6 +122,17 @@
                 },
                 {
                     "name": "",
+                    "id": "d6c1c0cc-be60-4ee5-be4b-74cc941a9149",
+                    "path": "<Keyboard>/f11",
+                    "interactions": "Press",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Fullscreen",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "a4a7a7ab-385f-4c19-8eee-5f62a6af57a4",
                     "path": "<Keyboard>/h",
                     "interactions": "Press",

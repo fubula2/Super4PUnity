@@ -4,14 +4,16 @@ using System.Collections.Generic;
 public static class FfmpegArgs
 {
     //Converts a clip to VP8/Vorbis WebM, which Unity's Linux player can decode
-    public static IReadOnlyList<string> Convert(string input, string output)
+    //The picture keeps its original size and frame rate; only the encoder effort is tuned for speed
+    public static IReadOnlyList<string> Convert(string input, string output, int threads = 2, int cpuUsed = 6)
     {
         return new[]
         {
             "-y", "-nostdin", "-loglevel", "error",
             "-i", input,
             "-map", "0:v:0", "-map", "0:a:0?",
-            "-c:v", "libvpx", "-pix_fmt", "yuv420p", "-b:v", "4M", "-crf", "10", "-deadline", "good", "-cpu-used", "4",
+            "-c:v", "libvpx", "-pix_fmt", "yuv420p", "-b:v", "4M", "-crf", "10",
+            "-deadline", "realtime", "-cpu-used", cpuUsed.ToString(), "-threads", threads.ToString(),
             "-c:a", "libvorbis", "-q:a", "4",
             "-f", "webm", output
         };

@@ -70,7 +70,9 @@ public static class LinuxVideoPrep
         }
 
         var done = 0;
-        var gate = new SemaphoreSlim(Mathf.Clamp(Environment.ProcessorCount / 2, 1, 4));
+        var cores = Environment.ProcessorCount;
+        var gate = new SemaphoreSlim(ConversionSettings.Workers(cores, todo.Count));
+        var cpuUsed = ConversionSettings.CpuUsed(cores);
         progress?.Invoke(0, todo.Count);
 
         await Task.WhenAll(todo.Select(async clip =>
@@ -81,7 +83,7 @@ public static class LinuxVideoPrep
             try
             {
                 if(ct.IsCancellationRequested) { return; }
-                var run = await ProcessRunner.RunAsync(ffmpeg, FfmpegArgs.Convert(clip.Source, temp), ct).ConfigureAwait(false);
+                var run = await ProcessRunner.RunAsync(ffmpeg, FfmpegArgs.Convert(clip.Source, temp, ConversionSettings.ThreadsPerJob, cpuUsed), ct).ConfigureAwait(false);
                 if(run.ExitCode == 0 && new FileInfo(temp).Length > 0)
                 {
                     if(File.Exists(final)) { File.Delete(final); }
