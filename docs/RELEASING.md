@@ -63,3 +63,9 @@ or installs anything by itself.
 3. Run the unit tests, then build every package (`BuildMac.Build`, `BuildDesktop.Windows`, `BuildDesktop.Linux`, `BuildAndroid.Build`).
 4. Commit, tag `v<version>` and push. The tag must match the version: the app's update notice compares the latest release's tag with its own version.
 5. Create the GitHub release for that tag, use the release notes as its description, and attach the four packages.
+
+## Import from device
+The Mods Folder button opens a menu: Import files, Open mods folder, and (desktop) Choose mods folder. Import files asks for characters or music. Characters: pick `.zip`/`.rar` files or folders; they are extracted or copied into a temp folder, the player confirms what was picked and then which `CHAR_*` mods were found, and only `CHAR_*` folders are installed. Music: pick `.ogg`/`.mp3` files, copied flat into `mods/music`.
+- Windows/macOS use PowerShell/osascript dialogs; Linux needs `zenity` or `kdialog` installed (a message says so otherwise).
+- Android uses the system picker through `Assets/Plugins/Android/S4PPicker.java`, which copies the picked content into the app cache (`cache/import/`), deleted when the import ends. No storage permission is needed.
+- Android: when Play finds a video the system refuses to open, a window offers "Allow access" (All files access, declared in `Assets/Plugins/Android/S4PAccess.androidlib`). The androidlib's `build.gradle` hardcodes compileSdk 36 and build tools 36.0.0; update them when the Unity version changes.

@@ -55,4 +55,43 @@ public static class AndroidFiles
 #endif
         return false;
     }
+
+    //True when the app may read every file on shared storage (Android 11+ "All files access"); older Android versions always allow it
+    public static bool HasAllFilesAccess()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        try
+        {
+            using(var version = new AndroidJavaClass("android.os.Build$VERSION"))
+            {
+                if(version.GetStatic<int>("SDK_INT") < 30) { return true; }
+            }
+            using(var env = new AndroidJavaClass("android.os.Environment")) { return env.CallStatic<bool>("isExternalStorageManager"); }
+        }
+        catch(Exception e) { Debug.LogWarning("Could not check file access: " + e.Message); }
+#endif
+        return false;
+    }
+
+    //Opens this app's "All files access" switch in Android settings; false when the screen cannot be opened
+    public static bool OpenAllFilesAccessSettings()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        try
+        {
+            using(var activity = Activity())
+            {
+                var uri = "package:" + activity.Call<string>("getPackageName");
+                using(var parsed = new AndroidJavaClass("android.net.Uri").CallStatic<AndroidJavaObject>("parse", uri))
+                using(var intent = new AndroidJavaObject("android.content.Intent", "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION", parsed))
+                {
+                    activity.Call("startActivity", intent);
+                    return true;
+                }
+            }
+        }
+        catch(Exception e) { Debug.LogWarning("Could not open the file access settings: " + e.Message); }
+#endif
+        return false;
+    }
 }

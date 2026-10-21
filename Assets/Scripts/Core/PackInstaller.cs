@@ -39,27 +39,7 @@ public static class PackInstaller
             dirs = dirs.Where(d => chosenSet.Contains(Path.GetFileName(d))).ToList();
             if(dirs.Count == 0) { return Fail("Cancelled."); }
 
-            Directory.CreateDirectory(modsDir);
-            var names = dirs.Select(Path.GetFileName).Distinct().ToList();
-            var existing = names.Where(n => Directory.Exists(Path.Combine(modsDir, n))).ToList();
-            var choice = existing.Count > 0 ? onConflict(existing) : ConflictChoice.Overwrite;
-
-            var installed = new List<string>();
-            var skipped = new List<string>();
-            foreach(var dir in dirs)
-            {
-                ct.ThrowIfCancellationRequested();
-                var name = Path.GetFileName(dir);
-                var dest = Path.Combine(modsDir, name);
-                var isDuplicate = installed.Contains(name) || skipped.Contains(name);
-                var exists = Directory.Exists(dest);
-
-                if(isDuplicate || (exists && choice == ConflictChoice.Skip)) { skipped.Add(name); continue; }
-                if(exists) { Directory.Delete(dest, true); }
-                MoveDirectory(dir, dest);
-                installed.Add(name);
-            }
-            return new InstallResult { Ok = true, Installed = installed, Skipped = skipped };
+            return InstallDirs(dirs, modsDir, onConflict, ct);
         }
         catch(OperationCanceledException) { return Fail("Cancelled."); }
         catch(Exception e) when(e is IOException || e is UnauthorizedAccessException) { return Fail("Could not install the pack: " + e.Message); }
@@ -71,12 +51,38 @@ public static class PackInstaller
         }
     }
 
+    //Moves the chosen CHAR_* folders into the mods folder, asking once about folders that already exist
+    public static InstallResult InstallDirs(IReadOnlyList<string> dirs, string modsDir, Func<IReadOnlyList<string>, ConflictChoice> onConflict, CancellationToken ct)
+    {
+        Directory.CreateDirectory(modsDir);
+        var names = dirs.Select(Path.GetFileName).Distinct().ToList();
+        var existing = names.Where(n => Directory.Exists(Path.Combine(modsDir, n))).ToList();
+        var choice = existing.Count > 0 ? onConflict(existing) : ConflictChoice.Overwrite;
+
+        var installed = new List<string>();
+        var skipped = new List<string>();
+        foreach(var dir in dirs)
+        {
+            ct.ThrowIfCancellationRequested();
+            var name = Path.GetFileName(dir);
+            var dest = Path.Combine(modsDir, name);
+            var isDuplicate = installed.Contains(name) || skipped.Contains(name);
+            var exists = Directory.Exists(dest);
+
+            if(isDuplicate || (exists && choice == ConflictChoice.Skip)) { skipped.Add(name); continue; }
+            if(exists) { Directory.Delete(dest, true); }
+            MoveDirectory(dir, dest);
+            installed.Add(name);
+        }
+        return new InstallResult { Ok = true, Installed = installed, Skipped = skipped };
+    }
+
     private static InstallResult Fail(string message)
     {
         return new InstallResult { Ok = false, Error = message };
     }
 
-    private static void MoveDirectory(string source, string dest)
+    public static void MoveDirectory(string source, string dest)
     {
         try { Directory.Move(source, dest); }
         catch(IOException)
@@ -87,7 +93,7 @@ public static class PackInstaller
         }
     }
 
-    private static void CopyDirectory(string source, string dest)
+    public static void CopyDirectory(string source, string dest)
     {
         Directory.CreateDirectory(dest);
         foreach(var file in Directory.GetFiles(source)) { File.Copy(file, Path.Combine(dest, Path.GetFileName(file)), true); }

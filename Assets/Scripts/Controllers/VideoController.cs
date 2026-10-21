@@ -214,7 +214,15 @@ public class VideoController : InputController
     //A clip that cannot play is skipped by the deck; if it was the very first clip there is nothing to show
     private void OnClipFailed(string videoPath)
     {
-        if(!VideoDeck.IsLoaded) { MainController.MC.GoToScene("Title"); }
+        if(VideoDeck.IsLoaded) { return; }
+
+        //Nothing can be shown, so go back to the menu and say why (the player's own message, plus the mod it was in)
+        var clip = string.IsNullOrEmpty(videoPath) ? "a video" : System.IO.Path.GetFileName(videoPath);
+        var folder = string.IsNullOrEmpty(videoPath) ? string.Empty : System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(videoPath) ?? string.Empty);
+        StartupNotice.Pending = "The video " + clip + (folder.Length > 0 ? " (in " + folder + ")" : string.Empty) + " could not be played.\n\n" +
+            (string.IsNullOrEmpty(VideoDeck.LastError) ? "The player gave no reason." : VideoDeck.LastError) +
+            "\n\nIf the file is there, the phone may not support this video, or the app may not be allowed to read it.";
+        MainController.MC.GoToScene("Title");
     }
 
     public bool CheckLooping()

@@ -17,26 +17,49 @@ public static class MediaFiles
     //holds none, its subfolders are searched too.
     public static List<string> VideosIn(string modDir)
     {
-        if(!Directory.Exists(modDir)) { return new List<string>(); }
-        var top = Directory.GetFiles(modDir).Where(IsVideo).OrderBy(f => f, StringComparer.Ordinal).ToList();
-        if(top.Count > 0) { return top; }
-        return Directory.GetFiles(modDir, "*", SearchOption.AllDirectories).Where(IsVideo).OrderBy(f => f, StringComparer.Ordinal).ToList();
+        try
+        {
+            if(!Directory.Exists(modDir)) { return new List<string>(); }
+            var top = Directory.GetFiles(modDir).Where(IsVideo).OrderBy(f => f, StringComparer.Ordinal).ToList();
+            if(top.Count > 0) { return top; }
+            return Directory.GetFiles(modDir, "*", SearchOption.AllDirectories).Where(IsVideo).OrderBy(f => f, StringComparer.Ordinal).ToList();
+        }
+        catch(Exception e) when(e is UnauthorizedAccessException || e is IOException) { return new List<string>(); }   //a folder the system will not list
     }
 
     //The icon, looked for in the mod's folder and then in its subfolders
     public static string IconIn(string modDir, string shortName)
     {
-        if(!Directory.Exists(modDir)) { return null; }
-        return FindIcon(Directory.GetFiles(modDir), shortName) ?? FindIcon(Directory.GetFiles(modDir, "*", SearchOption.AllDirectories), shortName);
+        try
+        {
+            if(!Directory.Exists(modDir)) { return null; }
+            return FindIcon(Directory.GetFiles(modDir), shortName) ?? FindIcon(Directory.GetFiles(modDir, "*", SearchOption.AllDirectories), shortName);
+        }
+        catch(Exception e) when(e is UnauthorizedAccessException || e is IOException) { return null; }
     }
 
     //A few names from the folder, for a message that says what is actually in there
     public static string Peek(string modDir, int max = 6)
     {
         if(!Directory.Exists(modDir)) { return "(the folder is missing)"; }
-        var names = Directory.GetFileSystemEntries(modDir).Select(Path.GetFileName).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+        List<string> names;
+        try { names = Directory.GetFileSystemEntries(modDir).Select(Path.GetFileName).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(); }
+        catch(Exception e) when(e is UnauthorizedAccessException || e is IOException) { return "(the system does not allow the app to list this folder)"; }
         if(names.Count == 0) { return "(the folder is empty)"; }
         return string.Join(", ", names.Take(max)) + (names.Count > max ? ", ... (" + names.Count + " items)" : string.Empty);
+    }
+
+    //Files the system refuses to open for reading (opened and closed right away); missing files are not counted
+    public static List<string> Unreadable(IEnumerable<string> files)
+    {
+        var denied = new List<string>();
+        foreach(var f in files)
+        {
+            try { using(File.OpenRead(f)) { } }
+            catch(UnauthorizedAccessException) { denied.Add(f); }
+            catch(IOException) { }
+        }
+        return denied;
     }
 
     public static bool IsMusic(string path)

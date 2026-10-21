@@ -34,6 +34,7 @@ public class ModPanel : MonoBehaviour
 
         var charDirs = GameDataManager.GM.CharDirs;
         var index = 0;
+        SpriteLibrary.Unreadable.Clear();   //refilled below by any icon the system will not let the app read
 
         foreach(var charDir in charDirs)
         {

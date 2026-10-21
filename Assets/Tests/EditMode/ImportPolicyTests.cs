@@ -23,6 +23,12 @@ public class ImportPolicyTests
     }
 
     [Test]
+    public void Device_import_always_prompts()
+    {
+        Assert.IsTrue(ImportPolicy.NeedsPromptForImport());
+    }
+
+    [Test]
     public void CharDisplayName_strips_prefix_only_at_start()
     {
         Assert.AreEqual("01Anime_DBZ_Bulma", CharDisplayName.From("CHAR_01Anime_DBZ_Bulma"));

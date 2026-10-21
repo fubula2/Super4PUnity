@@ -5,6 +5,12 @@ public static class ImportPolicy
     {
         return charCount != 1 || !namesKnown;
     }
+
+    //Mods picked on the device are always confirmed before they are installed
+    public static bool NeedsPromptForImport()
+    {
+        return true;
+    }
 }
 
 public static class CharDisplayName

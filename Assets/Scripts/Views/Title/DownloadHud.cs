@@ -182,8 +182,10 @@ public class DownloadHud : MonoBehaviour
         promptDialogOpen = true;
         if(p.Kind == PromptKind.Select)
         {
-            Dialog.ShowChecklist("Choose characters", TextFit.MiddleEllipsis(p.Title, 78) + "\nUntick the characters you do not want to import.",
-                p.Names.Select(CharDisplayName.From).ToList(), "Import selected",
+            var body = p.IsImport ? "Found these mods. Untick any you do not want." + (string.IsNullOrEmpty(p.Note) ? "" : "\n" + p.Note)
+                : TextFit.MiddleEllipsis(p.Title, 78) + "\nUntick the characters you do not want to import.";
+            Dialog.ShowChecklist(p.IsImport ? "Confirm import" : "Choose characters", body,
+                p.Names.Select(CharDisplayName.From).ToList(), p.IsImport ? "Confirm import" : "Import selected",
                 chosen => { promptDialogOpen = false; p.CompleteSelect(chosen.Select(i => p.Names[i]).ToList()); },
                 "Cancel import", () => { promptDialogOpen = false; p.CompleteSelect(null); }, cancelIsRed: true);
         }

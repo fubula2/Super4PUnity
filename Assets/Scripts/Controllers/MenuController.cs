@@ -22,6 +22,7 @@ public class MenuController : InputController
     public GetModsPanel GetModsPanel;
 
     private IFolderPicker FolderPicker;
+    private ImportFlow importFlow;
     private Dropdown FpsDropdown;
     private const float FpsBoxWidth = 130f;
 
@@ -55,8 +56,10 @@ public class MenuController : InputController
 
         #if UNITY_STANDALONE || UNITY_EDITOR
             FolderPicker = gameObject.AddComponent<DesktopFolderPicker>();
-            ModsFolderBtn.onClick.AddListener(OnChooseModsFolder);
-        #elif UNITY_ANDROID || UNITY_IOS
+            ModsFolderBtn.onClick.AddListener(OnModsFolderMenu);
+        #elif UNITY_ANDROID
+            ModsFolderBtn.onClick.AddListener(OnModsFolderMenu);
+        #elif UNITY_IOS
             ModsFolderBtn.onClick.AddListener(OnShowModsFolder);
         #else
             ModsFolderBtn.gameObject.SetActive(false);
@@ -101,6 +104,28 @@ public class MenuController : InputController
 
         MainController.MC.GS_Current = GameState.Active;
         if(MobileLayout.Active) { StartCoroutine(DefaultMusicCopier.CopyOnce(OnRefreshMods)); }
+        ShowStartupProblems();
+    }
+
+    private string shownProblemKey;
+
+    //Problems found while loading: a first clip that would not play, or files the system will not let the app read
+    private void ShowStartupProblems()
+    {
+        string text = null;
+        if(!string.IsNullOrEmpty(StartupNotice.Pending))
+        {
+            text = StartupNotice.Pending;
+            StartupNotice.Pending = null;
+        }
+        else if(SpriteLibrary.Unreadable.Count > 0)
+        {
+            var key = string.Join("|", SpriteLibrary.Unreadable);
+            if(key == shownProblemKey) { return; }
+            shownProblemKey = key;
+            text = FileAccessMessage.Describe(SpriteLibrary.Unreadable);
+        }
+        if(text != null && !GetModsPanel.Dialog.IsOpen) { GetModsPanel.Dialog.Show("Problem with a mod", text, "OK", null); }
     }
 
     //Get Mods and Refresh are a little wider so they are easier to hit and notice; PackTopButtons then lines all three up
@@ -162,6 +187,36 @@ public class MenuController : InputController
         panel.anchorMin = new Vector2(0, 1); panel.anchorMax = new Vector2(1, 1); panel.pivot = new Vector2(0.5f, 1);
         panel.anchoredPosition = Vector2.zero;
         panel.sizeDelta = new Vector2(0, height);
+    }
+
+    //Mods Folder button: import files, open the folder, or (desktop) choose another folder
+    private void OnModsFolderMenu()
+    {
+        var labels = new System.Collections.Generic.List<string> { "Import files", "Open mods folder" };
+        #if UNITY_STANDALONE || UNITY_EDITOR
+            labels.Add("Choose mods folder");
+        #endif
+        GetModsPanel.Dialog.ShowList("Mods folder", GameDataManager.GM.GetModsPath(), labels, index =>
+        {
+            if(index == 0)
+            {
+                importFlow = importFlow ?? new ImportFlow(GetModsPanel.Dialog, gameObject);
+                importFlow.Start();
+            }
+            else if(index == 1) { OnOpenModsFolder(); }
+            else { OnChooseModsFolder(); }
+        }, "Close", null);
+    }
+
+    private void OnOpenModsFolder()
+    {
+        #if UNITY_ANDROID && !UNITY_EDITOR
+            OnShowModsFolder();
+        #else
+            var path = GameDataManager.GM.GetModsPath();
+            System.IO.Directory.CreateDirectory(path);
+            Application.OpenURL(new System.Uri(path.TrimEnd('/', '\\') + System.IO.Path.DirectorySeparatorChar).AbsoluteUri);
+        #endif
     }
 
     //Android: tell the player where the mods folder is and offer to open it in the Files app
@@ -295,6 +350,25 @@ public class MenuController : InputController
                 MediaFiles.Peek(GameDataManager.GM.GetModsPath() + "/" + first) + "\n\nCheck that the videos were copied into that folder.", "OK", null);
             return;
         }
+        CheckAccessThenPlay();
+    }
+
+    //Every video of the selected mods must be readable (files copied in by other apps can be refused on Android).
+    //The check runs off the main thread; a short message shows only if it takes a moment.
+    private async void CheckAccessThenPlay()
+    {
+        var videos = GameDataManager.GM.SelectedMods.SelectMany(m => GameDataManager.GM.GetVideoPaths(m)).ToList();
+        var check = System.Threading.Tasks.Task.Run(() => MediaFiles.Unreadable(videos));
+        var shown = false;
+        if(await System.Threading.Tasks.Task.WhenAny(check, System.Threading.Tasks.Task.Delay(250)) != check)
+        {
+            shown = true;
+            GetModsPanel.Dialog.Show("Play", "Checking the video files...", null, null);
+        }
+        var unreadable = await check;
+        if(shown) { GetModsPanel.Dialog.Hide(); }
+        if(unreadable.Count > 0) { ShowNoFileAccess(unreadable); return; }
+
         ModPanel.RemoveUnusedSprites();
         if(LinuxVideoPrep.Needed)
         {
@@ -302,6 +376,23 @@ public class MenuController : InputController
             return;
         }
         MainController.MC.GoToScene("Game");
+    }
+
+    private void ShowNoFileAccess(System.Collections.Generic.IReadOnlyList<string> unreadable)
+    {
+        var text = FileAccessMessage.Describe(unreadable);
+        #if UNITY_ANDROID
+            if(!AndroidFiles.HasAllFilesAccess())
+            {
+                GetModsPanel.Dialog.Show("Cannot read the videos", text + "\n\nOr press Allow access to let the app read all files, then press Play again.",
+                    "Allow access", () =>
+                    {
+                        if(!AndroidFiles.OpenAllFilesAccessSettings()) { GetModsPanel.Dialog.Show("Allow access", "Open Settings > Apps > Super4PUnity > Permissions > Files and media, and allow access to all files.", "OK", null); }
+                    }, "Close", null);
+                return;
+            }
+        #endif
+        GetModsPanel.Dialog.Show("Cannot read the videos", text, "OK", null);
     }
 
     public void OnHelpClick()
