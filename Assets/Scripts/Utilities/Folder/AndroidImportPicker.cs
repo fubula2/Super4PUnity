@@ -11,6 +11,9 @@ public class AndroidImportPicker : MonoBehaviour, IImportPicker
     private Action<IReadOnlyList<string>> pendingCallback;
     private readonly List<string> tempDirs = new List<string>();
 
+    //Files the app was opened with (copied to the cache by the plugin); the menu takes them and starts the import flow
+    public static readonly System.Collections.Concurrent.ConcurrentQueue<IReadOnlyList<string>> Opened = new System.Collections.Concurrent.ConcurrentQueue<IReadOnlyList<string>>();
+
     public string UnavailableReason => null;
     public bool OneFolderAtATime => true;
 
@@ -50,6 +53,36 @@ public class AndroidImportPicker : MonoBehaviour, IImportPicker
         catch(Exception e) { Debug.LogWarning("Could not open the picker: " + e.Message); pendingCallback = null; }
     }
 
+    //Asks the plugin whether the app was opened with a .zip/.rar; the answer arrives in OnOpened
+    public void CheckOpenedFile()
+    {
+        try
+        {
+            using(var unity = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+            using(var activity = unity.GetStatic<AndroidJavaObject>("currentActivity"))
+            using(var picker = new AndroidJavaClass("com.super4p.picker.S4PPicker"))
+            {
+                picker.CallStatic("handleIntent", activity);
+            }
+        }
+        catch(Exception e) { Debug.LogWarning("Could not check the opened file: " + e.Message); }
+    }
+
+    //Called by the Java plugin through UnitySendMessage
+    public void OnOpened(string message)
+    {
+        var result = PickerOutput.ParseAndroidResult(message);
+        tempDirs.AddRange(result.TempDirs);
+        if(result.Failed.Count > 0) { ShowFailed(result.Failed); }
+        if(result.Paths.Count > 0) { Opened.Enqueue(result.Paths); }
+    }
+
+    private static void ShowFailed(IReadOnlyList<string> failed)
+    {
+        var dialog = FindObjectOfType<GetModsPanel>()?.Dialog;
+        dialog?.Show("Could not read some items", string.Join("\n", failed) + "\n\nThe other items can still be imported.", "OK", null);
+    }
+
     //Called by the Java plugin through UnitySendMessage
     public void OnPicked(string message)
     {
@@ -57,11 +90,7 @@ public class AndroidImportPicker : MonoBehaviour, IImportPicker
         tempDirs.AddRange(result.TempDirs);
         var callback = pendingCallback;
         pendingCallback = null;
-        if(result.Failed.Count > 0)
-        {
-            var dialog = FindObjectOfType<GetModsPanel>()?.Dialog;
-            dialog?.Show("Could not read some items", string.Join("\n", result.Failed) + "\n\nThe other items can still be imported.", "OK", null);
-        }
+        if(result.Failed.Count > 0) { ShowFailed(result.Failed); }
         if(result.Paths.Count > 0) { callback?.Invoke(result.Paths); }
     }
 }

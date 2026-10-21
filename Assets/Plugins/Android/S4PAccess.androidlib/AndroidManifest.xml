@@ -2,4 +2,32 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Optional: lets the player allow the app to read mod files copied in by other apps (Settings > All files access) -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+    <application>
+        <!-- Lets .zip/.rar files be opened or shared to the app, which then offers to import them -->
+        <activity android:name="com.unity3d.player.UnityPlayerActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+        <data android:mimeType="application/zip" />
+        <data android:mimeType="application/x-zip-compressed" />
+        <data android:mimeType="application/vnd.rar" />
+        <data android:mimeType="application/x-rar-compressed" />
+        <data android:mimeType="application/x-rar" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="application/zip" />
+        <data android:mimeType="application/x-zip-compressed" />
+        <data android:mimeType="application/vnd.rar" />
+        <data android:mimeType="application/x-rar-compressed" />
+        <data android:mimeType="application/x-rar" />
+            </intent-filter>
+        </activity>
+    </application>
 </manifest>

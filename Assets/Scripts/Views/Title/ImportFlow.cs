@@ -19,6 +19,17 @@ public class ImportFlow
         this.host = host;
     }
 
+    //The app was opened with these files (Android "Open with" or Share): go straight to the confirmation
+    public void StartWithPaths(IReadOnlyList<string> paths)
+    {
+        picker = picker ?? ImportPickers.Create(host);
+        if(picker == null) { return; }
+        music = false;
+        picked.Clear();
+        ignored = 0;
+        OnPicked(paths);
+    }
+
     //Asks whether characters or music are being imported, then opens the picker
     public void Start()
     {

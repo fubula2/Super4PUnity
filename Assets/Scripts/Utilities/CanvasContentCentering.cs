@@ -32,6 +32,23 @@ public static class CanvasContentCentering
             if(child == holder) { continue; }
             child.SetParent(holder, false);
         }
+        ExtendDims(holder);
         return holder;
+    }
+
+    //Pop-up backdrops ("Dim") stretch to their parent, which is now only the reference-sized area; let them reach past it so the whole screen darkens
+    private const float DimOverscan = 4000f;
+
+    private static void ExtendDims(Transform root)
+    {
+        foreach(Transform child in root)
+        {
+            if(child.name == "Dim" && child is RectTransform rt && rt.anchorMin == Vector2.zero && rt.anchorMax == Vector2.one)
+            {
+                rt.offsetMin = new Vector2(-DimOverscan, -DimOverscan);
+                rt.offsetMax = new Vector2(DimOverscan, DimOverscan);
+            }
+            ExtendDims(child);
+        }
     }
 }

@@ -23,6 +23,10 @@ public class MenuController : InputController
 
     private IFolderPicker FolderPicker;
     private ImportFlow importFlow;
+    #if UNITY_ANDROID && !UNITY_EDITOR
+    private AndroidImportPicker openedPicker;
+    private float nextOpenedCheck;
+    #endif
     private Dropdown FpsDropdown;
     private const float FpsBoxWidth = 130f;
 
@@ -369,6 +373,11 @@ public class MenuController : InputController
         if(shown) { GetModsPanel.Dialog.Hide(); }
         if(unreadable.Count > 0) { ShowNoFileAccess(unreadable); return; }
 
+        ShowPinchTipThen(StartPlayback);
+    }
+
+    private void StartPlayback()
+    {
         ModPanel.RemoveUnusedSprites();
         if(LinuxVideoPrep.Needed)
         {
@@ -376,6 +385,23 @@ public class MenuController : InputController
             return;
         }
         MainController.MC.GoToScene("Game");
+    }
+
+    //Phones: once per app launch, after Play, tell the player they can pinch to zoom (with a "don't remind me again" box)
+    private static bool pinchTipShown;
+
+    private void ShowPinchTipThen(System.Action next)
+    {
+        var config = GameDataManager.GM.PlyrConfigData;
+        if(!MobileLayout.Active || pinchTipShown || config.PinchHintDismissed) { next(); return; }
+        pinchTipShown = true;
+        GetModsPanel.Dialog.ShowChecklist("Tip", "Pinch to zoom while a video plays.\nSpread to fill the screen, pinch in to fit it.",
+            new[] { "Don't remind me again" }, "OK",
+            ticked =>
+            {
+                if(ticked.Count > 0) { config.PinchHintDismissed = true; GameDataManager.GM.SavePlyrCfgData(); }
+                next();
+            }, null, null, initiallyTicked: false, optionalChecks: true);
     }
 
     private void ShowNoFileAccess(System.Collections.Generic.IReadOnlyList<string> unreadable)
@@ -393,6 +419,30 @@ public class MenuController : InputController
             }
         #endif
         GetModsPanel.Dialog.Show("Cannot read the videos", text, "OK", null);
+    }
+
+    private void Update()
+    {
+        CheckOpenedFiles();
+    }
+
+    //Android: a .zip/.rar opened with this app (or shared to it) starts the import confirmation
+    private void CheckOpenedFiles()
+    {
+        #if UNITY_ANDROID && !UNITY_EDITOR
+            //Cheap once a second: the plugin handles each opening intent only once (also covers the app being brought to the front by "Open with")
+            if(Time.unscaledTime >= nextOpenedCheck)
+            {
+                nextOpenedCheck = Time.unscaledTime + 1f;
+                if(openedPicker == null) { openedPicker = ImportPickers.Create(gameObject) as AndroidImportPicker; }
+                openedPicker?.CheckOpenedFile();
+            }
+            if(AndroidImportPicker.Opened.TryPeek(out _) && !GetModsPanel.Dialog.IsOpen && AndroidImportPicker.Opened.TryDequeue(out var paths))
+            {
+                importFlow = importFlow ?? new ImportFlow(GetModsPanel.Dialog, gameObject);
+                importFlow.StartWithPaths(paths);
+            }
+        #endif
     }
 
     public void OnHelpClick()

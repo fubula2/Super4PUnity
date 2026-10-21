@@ -10,17 +10,17 @@ public class FrameRatePolicyTests
     }
 
     [Test]
-    public void Nothing_chosen_defaults_by_device()
+    public void Nothing_chosen_defaults_to_60()
     {
         Assert.AreEqual(60, FrameRatePolicy.Resolve(0, false));
-        Assert.AreEqual(30, FrameRatePolicy.Resolve(0, true));
+        Assert.AreEqual(60, FrameRatePolicy.Resolve(0, true));
     }
 
     [Test]
     public void Unexpected_saved_values_are_ignored()
     {
         Assert.AreEqual(60, FrameRatePolicy.Resolve(144, false));
-        Assert.AreEqual(30, FrameRatePolicy.Resolve(-1, true));
+        Assert.AreEqual(60, FrameRatePolicy.Resolve(-1, true));
     }
 
     [Test]

@@ -9,6 +9,13 @@ android {
     compileSdkVersion 36
     buildToolsVersion '36.0.0'
 
+    //The manifest sits in the library's root (not src/main), so say where it is
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8

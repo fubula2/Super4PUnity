@@ -43,8 +43,31 @@ public class S4PPicker {
         });
     }
 
-    private static void send(String message) {
-        UnityPlayer.UnitySendMessage("ImportPickerReceiver", "OnPicked", message);
+    private static void send(String method, String message) {
+        UnityPlayer.UnitySendMessage("ImportPickerReceiver", method, message);
+    }
+
+    //Called when the app starts or comes back to the front: if it was opened with a .zip/.rar ("Open with" or Share),
+    //the file is copied into the cache and reported through OnOpened. Each intent is handled once.
+    public static void handleIntent(final Activity activity) {
+        Intent intent = activity.getIntent();
+        if (intent == null || intent.getBooleanExtra("s4p_done", false)) return;
+        String action = intent.getAction();
+        final List<Uri> uris = new ArrayList<Uri>();
+        if (Intent.ACTION_VIEW.equals(action) && intent.getData() != null) {
+            uris.add(intent.getData());
+        } else if (Intent.ACTION_SEND.equals(action)) {
+            Uri u = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (u != null) uris.add(u);
+        } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+            ArrayList<Uri> list = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (list != null) uris.addAll(list);
+        }
+        if (uris.isEmpty()) return;
+        intent.putExtra("s4p_done", true);
+        new Thread(new Runnable() {
+            @Override public void run() { copyUris(activity, uris, "OnOpened"); }
+        }).start();
     }
 
     public static class PickerFragment extends Fragment {
@@ -75,7 +98,7 @@ public class S4PPicker {
             final Activity activity = getActivity();
             getFragmentManager().beginTransaction().remove(this).commitAllowingStateLoss();
             if (requestCode != REQUEST || resultCode != Activity.RESULT_OK || data == null) {
-                send("");
+                send("OnPicked", "");
                 return;
             }
             final boolean isFolder = folder;
@@ -113,21 +136,35 @@ public class S4PPicker {
                 } else if (data.getData() != null) {
                     uris.add(data.getData());
                 }
-                for (Uri uri : uris) {
-                    String name = queryName(resolver, uri, "file");
-                    File dest = uniqueFile(root, name);
-                    try {
-                        copyStream(resolver.openInputStream(uri), dest);
-                        out.append("P\t").append(dest.getAbsolutePath()).append("\n");
-                    } catch (Exception e) {
-                        out.append("F\t").append(name).append("\n");
-                    }
-                }
+                root.delete();
+                copyUris(activity, uris, "OnPicked");
+                return;
             }
         } catch (Exception e) {
             out.append("F\t").append("selection").append("\n");
         }
-        send(out.toString());
+        send("OnPicked", out.toString());
+    }
+
+    private static void copyUris(Activity activity, List<Uri> uris, String method) {
+        StringBuilder out = new StringBuilder();
+        File base = activity.getExternalCacheDir() != null ? activity.getExternalCacheDir() : activity.getCacheDir();
+        File root = new File(base, "import/" + System.currentTimeMillis());
+        root.mkdirs();
+        out.append("D\t").append(root.getAbsolutePath()).append("\n");
+        ContentResolver resolver = activity.getContentResolver();
+        for (Uri uri : uris) {
+            String fallback = uri.getLastPathSegment() != null ? uri.getLastPathSegment().replace('/', '_') : "file";
+            String name = queryName(resolver, uri, fallback);
+            File dest = uniqueFile(root, name);
+            try {
+                copyStream(resolver.openInputStream(uri), dest);
+                out.append("P\t").append(dest.getAbsolutePath()).append("\n");
+            } catch (Exception e) {
+                out.append("F\t").append(name).append("\n");
+            }
+        }
+        send(method, out.toString());
     }
 
     private static void copyTree(ContentResolver resolver, Uri tree, String parentId, File destDir) throws Exception {

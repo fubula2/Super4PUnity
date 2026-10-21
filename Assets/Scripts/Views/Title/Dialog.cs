@@ -31,12 +31,14 @@ public class Dialog : MonoBehaviour
     private bool capturedCancel;
     private Func<IReadOnlyList<int>, string> confirmLabelFor;
     private string baseConfirmLabel;
+    private bool optionalChecks;   //checkbox-only dialog: confirm works with nothing ticked, and All/None are hidden
 
     public bool IsOpen => Root.activeSelf;
 
     public void Show(string title, string body, string labelA, Action onA, string labelB = null, Action onB = null)
     {
         Prepare(title, body, false);
+        SizeBox(false);
         ListScroll.SetActive(false);
         Bind(ButtonA, LabelA, labelA, onA);
         Bind(ButtonB, LabelB, labelB, onB);
@@ -48,6 +50,7 @@ public class Dialog : MonoBehaviour
     public void ShowList(string title, string body, IReadOnlyList<string> labels, Action<int> onPick, string cancelLabel, Action onCancel)
     {
         Prepare(title, body, true);
+        SizeBox(false);
         Bind(ButtonA, LabelA, null, null);
         Bind(ButtonB, LabelB, cancelLabel, onCancel);
         CenterButtons();
@@ -73,9 +76,11 @@ public class Dialog : MonoBehaviour
     //Confirm gets the ticked indexes and is disabled while none are ticked. Entries start ticked unless initiallyTicked is false.
     //confirmLabelFor (optional) renders the confirm button's text from the current selection.
     public void ShowChecklist(string title, string body, IReadOnlyList<string> labels, string confirmLabel, Action<IReadOnlyList<int>> onConfirm, string cancelLabel, Action onCancel,
-        bool initiallyTicked = true, Func<IReadOnlyList<int>, string> confirmLabelFor = null, bool cancelIsRed = false)
+        bool initiallyTicked = true, Func<IReadOnlyList<int>, string> confirmLabelFor = null, bool cancelIsRed = false, bool optionalChecks = false)
     {
         Prepare(title, body, true);
+        this.optionalChecks = optionalChecks;
+        SizeBox(optionalChecks);
         SetCancelRed(cancelIsRed);
         this.confirmLabelFor = confirmLabelFor;
         baseConfirmLabel = confirmLabel;
@@ -88,6 +93,13 @@ public class Dialog : MonoBehaviour
             toggle.gameObject.SetActive(true);
             var rt = (RectTransform)toggle.transform;
             rt.anchoredPosition = new Vector2(0, -i * rowHeight);
+            if(optionalChecks)
+            {
+                //A single checkbox with its text, centered in the (smaller) box
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
+                rt.sizeDelta = new Vector2(340f, rowHeight);
+                rt.anchoredPosition = new Vector2(0f, -i * rowHeight);
+            }
             Fit(toggle.GetComponentInChildren<Text>(), labels[i], 9, 18);
             toggle.SetIsOnWithoutNotify(initiallyTicked);
             toggle.onValueChanged.AddListener(_ => UpdateConfirm());
@@ -107,8 +119,8 @@ public class Dialog : MonoBehaviour
         Bind(ButtonB, LabelB, cancelLabel, onCancel);
         CenterButtons();
 
-        ButtonAll.gameObject.SetActive(true);
-        ButtonNone.gameObject.SetActive(true);
+        ButtonAll.gameObject.SetActive(!optionalChecks);
+        ButtonNone.gameObject.SetActive(!optionalChecks);
         ButtonAll.onClick.RemoveAllListeners();
         ButtonNone.onClick.RemoveAllListeners();
         ButtonAll.onClick.AddListener(() => SetAll(true));
@@ -148,7 +160,7 @@ public class Dialog : MonoBehaviour
     private void UpdateConfirm()
     {
         var selected = Selected();
-        ButtonA.interactable = selected.Count > 0;
+        ButtonA.interactable = optionalChecks || selected.Count > 0;
         if(confirmLabelFor != null) { LabelA.text = selected.Count == 0 ? baseConfirmLabel : confirmLabelFor(selected); }
     }
 
@@ -163,8 +175,35 @@ public class Dialog : MonoBehaviour
         text.verticalOverflow = VerticalWrapMode.Truncate;
     }
 
+    private static readonly Vector2 SmallBox = new Vector2(760f, 360f);
+    private Vector2? normalBox;
+    private (bool, bool)? scrollDefaults;
+
+    //Checkbox-only dialogs (tips) get a small box; everything else keeps the usual size
+    private void SizeBox(bool small)
+    {
+        var box = (RectTransform)Root.transform.Find("Box");
+        if(box == null) { return; }
+        if(normalBox == null) { normalBox = box.sizeDelta; }
+        box.sizeDelta = small ? SmallBox : normalBox.Value;
+
+        //One checkbox never needs scrolling: no scroll bars on the small box
+        var scroll = ListScroll.GetComponent<ScrollRect>();
+        if(scroll != null)
+        {
+            if(scrollDefaults == null) { scrollDefaults = (scroll.vertical, scroll.horizontal); }
+            scroll.vertical = !small && scrollDefaults.Value.Item1;
+            scroll.horizontal = !small && scrollDefaults.Value.Item2;
+        }
+        foreach(Transform child in ListScroll.transform)
+        {
+            if(child.name.StartsWith("Scrollbar")) { child.gameObject.SetActive(!small); }
+        }
+    }
+
     private void Clear()
     {
+        optionalChecks = false;
         foreach(var item in items) { Destroy(item); }
         items.Clear();
         toggles.Clear();
