@@ -8,10 +8,10 @@ Get the latest build from the [Releases](../../releases) page. Each download is 
 
 | Platform | File | Status |
 |---|---|---|
-| Windows 10/11 (64-bit) | `Super4PUnity_v2.2.0_windows_x64.zip` | Tested |
-| macOS (Apple silicon) | `Super4PUnity_v2.2.0_macOS_arm64.zip` | Tested |
-| Android 8+ (64-bit) | `Super4PUnity_v2.2.0_android_arm64.apk` | Tested |
-| Linux (64-bit) | `Super4PUnity_v2.2.0_linux_x64.zip` | **Beta** |
+| Windows 10/11 (64-bit) | `Super4PUnity_v2.3.0_windows_x64.zip` | Tested |
+| macOS (Apple silicon) | `Super4PUnity_v2.3.0_macOS_arm64.zip` | Tested |
+| Android 8+ (64-bit) | `Super4PUnity_v2.3.0_android_arm64.apk` | Tested |
+| Linux (64-bit) | `Super4PUnity_v2.3.0_linux_x64.zip` | **Beta** |
 
 ## Features
 

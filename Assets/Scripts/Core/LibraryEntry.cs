@@ -12,6 +12,9 @@ public sealed class LibraryEntry
     public string Status;
     public string Url;
     public LinkKind Kind;
+    public int Row;           //row number on the sheet
+    public string IconFile;   //series logo extracted from the sheet (local path), or null
+    public string IconText;   //short text shown in place of a logo (the sheet's letters, else the first letter of the series)
 }
 
 public sealed class LibraryCatalog

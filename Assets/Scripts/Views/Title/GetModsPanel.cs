@@ -35,6 +35,7 @@ public class GetModsPanel : MonoBehaviour
     }
 
     private readonly List<Item> items = new List<Item>();
+    private readonly Queue<LibraryRow> iconQueue = new Queue<LibraryRow>();   //rows waiting for their logo (a few per frame)
     private LibraryService service;
     private LibraryCatalog catalog;
     private CancellationTokenSource loadCts;
@@ -230,6 +231,7 @@ public class GetModsPanel : MonoBehaviour
     {
         foreach(var item in items) { item.Object.SetActive(false); Destroy(item.Object); }
         items.Clear();
+        iconQueue.Clear();
         Content.sizeDelta = new Vector2(Content.sizeDelta.x, 0);
     }
 
@@ -264,6 +266,7 @@ public class GetModsPanel : MonoBehaviour
                 row.ActionButton.onClick.AddListener(() => OnAction(captured, row));
                 row.SeriesLink.DoubleClicked += () => OpenInBrowser(captured);
                 items.Add(new Item { Object = row.gameObject, Row = row, Group = groupIndex });
+                if(!string.IsNullOrEmpty(entry.IconFile)) { iconQueue.Enqueue(row); }
             }
             groupIndex++;
         }
@@ -322,6 +325,11 @@ public class GetModsPanel : MonoBehaviour
     private void Update()
     {
         if(!IsOpen) { return; }
+        for(var n = 0; n < 2 && iconQueue.Count > 0; n++)
+        {
+            var row = iconQueue.Dequeue();
+            if(row != null && row.Entry != null) { row.SetIcon(LibraryIcons.Load(row.Entry.IconFile)); }
+        }
         stateTimer += Time.unscaledDeltaTime;
         if(stateTimer < StateRefreshInterval) { return; }
         stateTimer = 0;

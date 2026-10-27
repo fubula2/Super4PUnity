@@ -38,6 +38,7 @@ public class DownloadHud : MonoBehaviour
     private Color versionNormalColor;
     private bool versionColorSet;
     private static bool updateChecked;
+    private ReleaseInfo pendingUpdate;   //a newer release waiting for the pop-up to be free
     private readonly Queue<DownloadNotification> toasts = new Queue<DownloadNotification>();
     private DownloadNotification shownToast;
     private float toastTimer;
@@ -130,6 +131,8 @@ public class DownloadHud : MonoBehaviour
     }
 
     //Close button is red; the two action buttons sit right next to it, and the message ends before them
+    private const float ButtonExtraWidth = 50f;
+
     private void LayoutToastButtons()
     {
         const float gap = 10f;
@@ -139,6 +142,9 @@ public class DownloadHud : MonoBehaviour
         var close = (RectTransform)ToastClose.transform;
         var folder = (RectTransform)ToastShowFolder.transform;
         var refresh = (RectTransform)ToastRefresh.transform;
+        //Wider Refresh and Open folder buttons
+        folder.sizeDelta += new Vector2(ButtonExtraWidth, 0f);
+        refresh.sizeDelta += new Vector2(ButtonExtraWidth, 0f);
         var closeLeft = -close.anchoredPosition.x + close.sizeDelta.x + gap;   //distance of the close button's left edge from the right side, plus a gap
         folder.anchoredPosition = new Vector2(-closeLeft + 0f, folder.anchoredPosition.y);
         refresh.anchoredPosition = new Vector2(-(closeLeft + folder.sizeDelta.x + gap), refresh.anchoredPosition.y);
@@ -214,8 +220,11 @@ public class DownloadHud : MonoBehaviour
         if(!updateChecked)
         {
             updateChecked = true;
-            if(UpdateThrottle.ShouldCheck(config.LastUpdateCheckUtc, DateTime.UtcNow, UpdateCheckInterval)) { UpdateChecker.Check(Application.version, false); }
+            //Every time the app starts
+            UpdateChecker.Check(Application.version, false);
         }
+
+        ShowPendingUpdate(config);
 
         //Once the saved settings are there, show whether this version is out of date (known from the last check)
         if(!versionColorSet) { versionColorSet = true; ColorVersionLabel(config); }
@@ -235,7 +244,7 @@ public class DownloadHud : MonoBehaviour
 
             if(result.Status == UpdateStatus.Available)
             {
-                if(result.Manual || !UpdateThrottle.IsSkipped(result.Release.Version, config.SkippedUpdateVersion)) { ShowToast(UpdateNotice(result.Release)); }
+                if(result.Manual || !UpdateThrottle.IsSkipped(result.Release.Version, config.SkippedUpdateVersion)) { pendingUpdate = result.Release; }
             }
             else if(result.Manual)
             {
@@ -243,6 +252,30 @@ public class DownloadHud : MonoBehaviour
                 ShowToast(new DownloadNotification { Text = "You're up to date (v" + Application.version + "): " + detail + "." });
             }
         }
+    }
+
+    //Out of date: a pop-up with Download, Later and a "Don't show again" box (which skips this version; a newer one asks again)
+    private void ShowPendingUpdate(PlayerConfigData config)
+    {
+        if(pendingUpdate == null || Dialog.IsOpen) { return; }
+        var release = pendingUpdate;
+        pendingUpdate = null;
+
+        var firstLine = (release.Notes ?? string.Empty).Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l)) ?? string.Empty;
+        if(firstLine.Length > 110) { firstLine = firstLine.Substring(0, 110) + "..."; }
+        var body = "Version " + release.Version + " is out (you have " + Application.version + ")." + (firstLine.Length > 0 ? "\n" + firstLine : string.Empty);
+
+        void Finish()
+        {
+            if(Dialog.LastTicked.Count > 0)
+            {
+                config.SkippedUpdateVersion = release.Version;
+                GameDataManager.GM.SavePlyrCfgData();
+            }
+        }
+        Dialog.ShowChecklist("Update available", body, new[] { "Don't show again" }, "Download",
+            _ => { Finish(); Application.OpenURL(release.Url); },
+            "Later", Finish, initiallyTicked: false, optionalChecks: true);
     }
 
     //Red while a newer version has been released; the normal colour otherwise

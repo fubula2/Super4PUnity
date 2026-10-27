@@ -118,4 +118,38 @@ public class LibrarySheetParserTests
         var f = Headers(new XlsxFixture()).Number("A14", 1).Text("B14", "Zelda").Link("G14", MF).Text("E7", "Music Mods");
         Assert.IsNull(LibrarySheetParser.Parse(f.Build()).MusicFolderUrl);
     }
+
+    [Test]
+    public void Icon_text_comes_from_the_cell_after_the_name_else_the_first_letter()
+    {
+        var f = Headers(new XlsxFixture())
+            .Number("A2", 1).Text("B2", "DNF\nDuel").Text("C2", "DNF").Link("G2", MF).Text("H2", "A")
+            .Number("A3", 2).Text("B3", "Atomic Heart").Text("C3", "\u2764").Link("G3", MF).Text("H3", "B")
+            .Number("A4", 3).Text("B4", "pikmin").Link("G4", MF).Text("H4", "C");
+        var entries = LibrarySheetParser.Parse(f.Build()).Entries;
+        Assert.AreEqual("DNF", entries[0].IconText);
+        Assert.AreEqual("A", entries[1].IconText);
+        Assert.AreEqual("P", entries[2].IconText);
+        Assert.IsNull(entries[0].IconFile);
+    }
+
+    [Test]
+    public void Logo_pictures_in_the_column_after_the_name_are_extracted_per_row()
+    {
+        var dir = ArchiveTestHelper.NewTempDir("icons");
+        try
+        {
+            var f = Headers(new XlsxFixture())
+                .Number("A2", 1).Text("B2", "Animal Crossing").Link("G2", MF).Text("H2", "A")
+                .Number("A3", 2).Text("B3", "Pikmin").Text("C3", "P").Link("G3", MF).Text("H3", "B")
+                .Image("C2", new byte[] { 1, 2, 3, 4 })
+                .Image("F9", new byte[] { 9 });   //not in the logo column: ignored
+            var entries = LibrarySheetParser.Parse(f.Build(), dir).Entries;
+            Assert.IsNotNull(entries[0].IconFile);
+            CollectionAssert.AreEqual(new byte[] { 1, 2, 3, 4 }, System.IO.File.ReadAllBytes(entries[0].IconFile));
+            Assert.IsNull(entries[1].IconFile);
+            Assert.AreEqual("P", entries[1].IconText);
+        }
+        finally { ArchiveTestHelper.Delete(dir); }
+    }
 }

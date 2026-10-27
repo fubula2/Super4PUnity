@@ -53,7 +53,7 @@ public sealed class LibraryService
 
     private LibraryCatalog ParseCache()
     {
-        using(var stream = File.OpenRead(cachePath)) { return LibrarySheetParser.Parse(stream); }
+        using(var stream = File.OpenRead(cachePath)) { return LibrarySheetParser.Parse(stream, Path.Combine(Path.GetDirectoryName(cachePath), "icons")); }
     }
 
     private async Task FetchAsync(CancellationToken ct)

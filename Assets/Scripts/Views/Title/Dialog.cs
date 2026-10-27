@@ -31,6 +31,8 @@ public class Dialog : MonoBehaviour
     private bool capturedCancel;
     private Func<IReadOnlyList<int>, string> confirmLabelFor;
     private string baseConfirmLabel;
+    //Checkbox-only dialogs: which boxes were ticked when OK or the cancel button was pressed
+    public IReadOnlyList<int> LastTicked { get; private set; } = new List<int>();
     private bool optionalChecks;   //checkbox-only dialog: confirm works with nothing ticked, and All/None are hidden
 
     public bool IsOpen => Root.activeSelf;
@@ -112,11 +114,16 @@ public class Dialog : MonoBehaviour
         BindRaw(ButtonA, LabelA, confirmLabel, () =>
         {
             var chosen = Selected();
+            LastTicked = chosen;
             Hide();
             onConfirm(chosen);
         });
         LabelA.resizeTextForBestFit = true; LabelA.resizeTextMinSize = 10; LabelA.resizeTextMaxSize = 16;
-        Bind(ButtonB, LabelB, cancelLabel, onCancel);
+        if(optionalChecks)
+        {
+            BindRaw(ButtonB, LabelB, cancelLabel, () => { LastTicked = Selected(); Hide(); onCancel?.Invoke(); });
+        }
+        else { Bind(ButtonB, LabelB, cancelLabel, onCancel); }
         CenterButtons();
 
         ButtonAll.gameObject.SetActive(!optionalChecks);

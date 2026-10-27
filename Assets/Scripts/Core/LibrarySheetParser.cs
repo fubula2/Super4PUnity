@@ -16,9 +16,10 @@ public static class LibrarySheetParser
     private static readonly XNamespace Main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     private static readonly XNamespace Rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
-    public static LibraryCatalog Parse(Stream xlsx)
+    //iconDir (optional): where the series logos embedded in the sheet are written; without it entries only get IconText
+    public static LibraryCatalog Parse(Stream xlsx, string iconDir = null)
     {
-        try { return ParseInternal(xlsx); }
+        try { return ParseInternal(xlsx, iconDir); }
         catch(Exception e) { return Fail("Could not read the library sheet: " + e.Message); }
     }
 
@@ -27,7 +28,7 @@ public static class LibrarySheetParser
         return new LibraryCatalog { Error = message };
     }
 
-    private static LibraryCatalog ParseInternal(Stream xlsx)
+    private static LibraryCatalog ParseInternal(Stream xlsx, string iconDir)
     {
         using(var zip = new ZipArchive(xlsx, ZipArchiveMode.Read, true))
         {
@@ -68,6 +69,8 @@ public static class LibrarySheetParser
             var updatedCol = Col("last updated");
             var statusCol = Col("status");
             var numberCol = Col("#");
+            var iconCol = NextColumn(seriesCol);
+            var icons = iconDir == null ? new Dictionary<int, string>() : ReadIcons(zip, sheetPath, ColumnIndex(iconCol), iconDir);
 
             var entries = new List<LibraryEntry>();
             string category = null;
@@ -97,11 +100,98 @@ public static class LibrarySheetParser
                     Updated = ExcelDate.FromSerial(Get(updatedCol)),
                     Status = StatusLabel(Get(statusCol)),
                     Url = url.Trim(),
-                    Kind = kind
+                    Kind = kind,
+                    Row = rowNumbers[i],
+                    IconFile = icons.TryGetValue(rowNumbers[i], out var icon) ? icon : null,
+                    IconText = IconLabel(Get(iconCol), seriesRaw)
                 });
             }
             return new LibraryCatalog { Entries = entries, MusicFolderUrl = FindMusicLink(rows, rowNumbers, links) };
         }
+    }
+
+    //The sheet shows a logo or a few letters before each series; letters come from the cell next to the name, else the name's first letter
+    private static string IconLabel(string cell, string series)
+    {
+        var text = Clean(cell, " ");
+        if(text.Length > 0 && text.Length <= 4 && text != "❤" && text != "►" && text != "●") { return text; }
+        var name = Clean(series, " ");
+        return name.Length > 0 ? name.Substring(0, 1).ToUpperInvariant() : string.Empty;
+    }
+
+    private static string NextColumn(string column)
+    {
+        var n = ColumnIndex(column) + 1;
+        var s = string.Empty;
+        while(n >= 0) { s = (char)('A' + n % 26) + s; n = n / 26 - 1; }
+        return s;
+    }
+
+    private static int ColumnIndex(string column)
+    {
+        var n = 0;
+        foreach(var ch in column.ToUpperInvariant()) { n = n * 26 + (ch - 'A' + 1); }
+        return n - 1;
+    }
+
+    private static readonly XNamespace Xdr = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
+    private static readonly XNamespace Dml = "http://schemas.openxmlformats.org/drawingml/2006/main";
+
+    //Pictures placed on the sheet in the given column: sheet row number -> extracted file path
+    private static Dictionary<int, string> ReadIcons(ZipArchive zip, string sheetPath, int column, string iconDir)
+    {
+        var result = new Dictionary<int, string>();
+        try
+        {
+            var sheetDir = sheetPath.Substring(0, sheetPath.LastIndexOf('/'));
+            var relsPath = sheetDir + "/_rels/" + sheetPath.Substring(sheetPath.LastIndexOf('/') + 1) + ".rels";
+            if(zip.GetEntry(relsPath) == null) { return result; }
+            var drawingTarget = Load(zip, relsPath).Descendants().FirstOrDefault(r => ((string)r.Attribute("Type") ?? string.Empty).EndsWith("/drawing"))?.Attribute("Target")?.Value;
+            if(drawingTarget == null) { return result; }
+            var drawingPath = Resolve(sheetDir, drawingTarget);
+            if(zip.GetEntry(drawingPath) == null) { return result; }
+
+            var drawingDir = drawingPath.Substring(0, drawingPath.LastIndexOf('/'));
+            var drawingRels = drawingDir + "/_rels/" + drawingPath.Substring(drawingPath.LastIndexOf('/') + 1) + ".rels";
+            if(zip.GetEntry(drawingRels) == null) { return result; }
+            var media = Load(zip, drawingRels).Descendants().Where(r => r.Attribute("Id") != null)
+                .ToDictionary(r => (string)r.Attribute("Id"), r => (string)r.Attribute("Target"));
+
+            Directory.CreateDirectory(iconDir);
+            foreach(var anchor in Load(zip, drawingPath).Root.Elements())
+            {
+                var from = anchor.Element(Xdr + "from");
+                var blip = anchor.Descendants(Dml + "blip").FirstOrDefault();
+                var embed = (string)blip?.Attribute(Rel + "embed");
+                if(from == null || embed == null || !media.TryGetValue(embed, out var target)) { continue; }
+                if(!int.TryParse((string)from.Element(Xdr + "col"), out var col) || col != column) { continue; }
+                if(!int.TryParse((string)from.Element(Xdr + "row"), out var row)) { continue; }
+
+                var entry = zip.GetEntry(Resolve(drawingDir, target));
+                if(entry == null) { continue; }
+                var file = Path.Combine(iconDir, Path.GetFileName(entry.FullName));
+                if(!File.Exists(file) || new FileInfo(file).Length != entry.Length)
+                {
+                    using(var input = entry.Open()) using(var output = File.Create(file)) { input.CopyTo(output); }
+                }
+                result[row + 1] = file;
+            }
+        }
+        catch(Exception e) when(e is IOException || e is InvalidDataException || e is UnauthorizedAccessException || e is System.Xml.XmlException) { }
+        return result;
+    }
+
+    //A relationship target relative to a folder inside the package ("../media/x.png" from "xl/drawings")
+    private static string Resolve(string folder, string target)
+    {
+        if(target.StartsWith("/")) { return target.TrimStart('/'); }
+        var parts = new List<string>(folder.Split('/'));
+        foreach(var piece in target.Split('/'))
+        {
+            if(piece == "..") { if(parts.Count > 0) { parts.RemoveAt(parts.Count - 1); } }
+            else if(piece != ".") { parts.Add(piece); }
+        }
+        return string.Join("/", parts);
     }
 
     //The hyperlink on the cell labelled "Music Mods" (anywhere on the tab), or null
